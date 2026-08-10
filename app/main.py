@@ -22,10 +22,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from utils.mock_llm import ask_llm
-
 from .auth import verify_api_key
 from .config import get_settings
+from .copilot import CloudCopilot
 from .cost_guard import CostGuard
 from .lifecycle import lifecycle
 from .logging_utils import log_event
@@ -57,6 +56,11 @@ def get_cost_guard() -> CostGuard:
     return CostGuard(get_redis_client(), get_settings().monthly_budget_usd)
 
 
+@lru_cache(maxsize=1)
+def get_copilot() -> CloudCopilot:
+    return CloudCopilot(get_settings())
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """CHO SẴN — chạy lúc app khởi động và lúc tắt."""
@@ -78,6 +82,12 @@ class AskRequest(BaseModel):
 def index():
     """Serve the optional browser demo without changing the API contract."""
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/capabilities")
+def capabilities():
+    """Public, secret-free metadata used by the browser demo."""
+    return get_copilot().capabilities()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -181,7 +191,7 @@ def ask(
     guard.check(user_id)
 
     history = store.get_history(user_id)
-    result = ask_llm(payload.question, history)
+    result = get_copilot().ask(payload.question, history)
 
     store.append(user_id, "user", payload.question)
     store.append(user_id, "assistant", result["answer"])
@@ -204,6 +214,11 @@ def ask(
             "in": result["tokens_in"],
             "out": result["tokens_out"],
         },
+        "provider": result.get("provider", "mock"),
+        "model": result.get("model", "mock-llm"),
+        "knowledge_mode": result.get("knowledge_mode", "offline"),
+        "sources": result.get("sources", []),
+        "warning": result.get("warning"),
     }
 
 

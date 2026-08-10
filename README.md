@@ -3,6 +3,32 @@
 Đưa một AI agent từ `localhost:8000` lên một địa chỉ công khai mà người khác
 gọi được, có bảo mật, có giới hạn chi phí, và không sập khi bạn deploy bản mới.
 
+## Cloud Deployment Copilot
+
+Trang chủ hiện là chatbot demo dùng Groq và hybrid RAG cho chủ đề triển khai AI
+service. Agent ưu tiên tài liệu Markdown trong repo; với câu hỏi liên quan nhưng cần
+thông tin hiện hành, agent tìm bằng Tavily và có thể dùng Firecrawl để đọc sâu một
+trang. Response `/ask` trả thêm `provider`, `model`, `knowledge_mode` và `sources`
+nhưng vẫn giữ nguyên hợp đồng của các checkpoint.
+
+Các chế độ được điều khiển hoàn toàn bằng biến môi trường:
+
+```env
+LLM_PROVIDER=groq
+GROQ_MODEL=openai/gpt-oss-20b
+RAG_ENABLED=true
+WEB_SEARCH_ENABLED=true
+WEB_SCRAPE_ENABLED=true
+```
+
+Ba secret `GROQ_API_KEY`, `TAVILY_API_KEY`, `FIRECRAWL_API_KEY` chỉ được lưu trong
+`.env` local hoặc Render Dashboard, không nằm trong Git. Nếu Groq lỗi và
+`LLM_FALLBACK_TO_MOCK=true`, endpoint vẫn hoạt động nhưng response ghi rõ đang dùng
+mock fallback.
+
+Corpus bổ sung nằm trong [`knowledge/`](knowledge/). Xem cấu hình mẫu đầy đủ tại
+[`.env.example`](.env.example).
+
 ---
 
 ## ⚠️ Bài Làm Cá Nhân

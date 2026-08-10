@@ -535,6 +535,37 @@ button {
   font-size: 9px;
 }
 
+.message-sources {
+  display: flex;
+  max-width: 720px;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  margin-top: 11px;
+  color: #777;
+  font-size: 10px;
+}
+
+.message-sources strong {
+  color: #aaa;
+}
+
+.message-sources a,
+.message-sources span {
+  color: #8b9cff;
+  text-decoration: none;
+}
+
+.message-sources a:hover {
+  text-decoration: underline;
+}
+
+.message-warning {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #d8a657;
+  font-size: 10px;
+}
+
 .typing-dots {
   display: flex;
   gap: 4px;

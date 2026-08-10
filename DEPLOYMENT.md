@@ -29,6 +29,14 @@
 | `RATE_LIMIT_PER_MINUTE` | ✅ | Blueprint, giá trị 10 |
 | `MONTHLY_BUDGET_USD` | ✅ | Blueprint, giá trị 10.0 |
 | `LOG_LEVEL` | ✅ | Blueprint, giá trị INFO |
+| `LLM_PROVIDER` | ✅ | Blueprint, giá trị `groq` |
+| `GROQ_MODEL` | ✅ | Blueprint, giá trị `openai/gpt-oss-20b` |
+| `GROQ_API_KEY` | ⏳ | Secret nhập trong Render Dashboard (`sync: false`) |
+| `TAVILY_API_KEY` | ⏳ | Secret nhập trong Render Dashboard (`sync: false`) |
+| `FIRECRAWL_API_KEY` | ⏳ | Secret nhập trong Render Dashboard (`sync: false`) |
+| `RAG_ENABLED` | ✅ | Blueprint, giá trị `true` |
+| `WEB_SEARCH_ENABLED` | ✅ | Blueprint, giá trị `true` |
+| `WEB_SCRAPE_ENABLED` | ✅ | Blueprint, giá trị `true` |
 
 ## Lệnh Kiểm Tra
 
@@ -60,6 +68,9 @@ for i in $(seq 1 15); do
     -H "X-User-Id: deployment-rate-check" \
     -d '{"question":"rate-limit-check"}'
 done; echo
+
+# 6. Xem provider và các khả năng RAG (không chứa secret)
+curl -s https://day12-agent-plt0.onrender.com/capabilities
 ```
 
 ## Kết Quả Chạy Thật

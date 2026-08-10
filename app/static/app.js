@@ -24,6 +24,9 @@ const elements = {
   sidebar: document.querySelector("#sidebar"),
   sidebarBackdrop: document.querySelector("#sidebar-backdrop"),
   menuButton: document.querySelector("#menu-button"),
+  modelName: document.querySelector("#model-name"),
+  modelState: document.querySelector("#model-state"),
+  modelDisclaimer: document.querySelector("#model-disclaimer"),
 };
 
 const storageKeys = {
@@ -102,6 +105,26 @@ async function refreshSystemStatus() {
   setStatus("redis", redisOnline, redisOnline ? "Connected" : "Disconnected");
 }
 
+async function refreshCapabilities() {
+  try {
+    const response = await fetch("/capabilities", { cache: "no-store" });
+    if (!response.ok) throw new Error("capabilities unavailable");
+    const data = await response.json();
+    elements.modelName.textContent = data.provider === "groq" ? "Groq · Cloud Copilot" : "Mock LLM";
+    elements.modelState.textContent = data.provider === "groq" ? data.model : "offline";
+    const modes = [
+      data.rag ? "Local RAG" : null,
+      data.web_search ? "Web Search" : null,
+      data.web_scrape ? "Deep Scrape" : null,
+    ].filter(Boolean);
+    elements.modelDisclaimer.textContent = `${data.model} · ${modes.join(" + ") || "Không dùng retrieval"} · Luôn kiểm tra các nguồn quan trọng.`;
+  } catch (_error) {
+    elements.modelName.textContent = "Cloud Copilot";
+    elements.modelState.textContent = "unavailable";
+    elements.modelDisclaimer.textContent = "Không đọc được cấu hình model. Hãy kiểm tra trạng thái service.";
+  }
+}
+
 function resizeComposer() {
   elements.input.style.height = "auto";
   elements.input.style.height = `${Math.min(elements.input.scrollHeight, 160)}px`;
@@ -150,13 +173,43 @@ function addMessage(role, text, metrics = null) {
       `${metrics.tokens.out} output tokens`,
       `$${Number(metrics.cost_usd).toFixed(8)}`,
       `${metrics.history_length} previous messages`,
-    ];
+      metrics.provider ? `${metrics.provider} · ${metrics.model}` : null,
+      metrics.knowledge_mode ? `knowledge: ${metrics.knowledge_mode}` : null,
+    ].filter(Boolean);
     values.forEach((value) => {
       const chip = document.createElement("span");
       chip.textContent = value;
       metricRow.append(chip);
     });
     content.append(metricRow);
+
+    if (metrics.sources?.length) {
+      const sources = document.createElement("div");
+      sources.className = "message-sources";
+      const label = document.createElement("strong");
+      label.textContent = "Nguồn";
+      sources.append(label);
+      metrics.sources.forEach((source, index) => {
+        const item = document.createElement(source.type === "web" ? "a" : "span");
+        item.textContent = `[${index + 1}] ${source.title}`;
+        if (source.type === "web") {
+          item.href = source.uri;
+          item.target = "_blank";
+          item.rel = "noopener noreferrer";
+        } else {
+          item.title = source.uri;
+        }
+        sources.append(item);
+      });
+      content.append(sources);
+    }
+
+    if (metrics.warning) {
+      const warning = document.createElement("p");
+      warning.className = "message-warning";
+      warning.textContent = metrics.warning;
+      content.append(warning);
+    }
   }
 
   article.append(avatar, content);
@@ -307,4 +360,5 @@ sessionStorage.setItem(storageKeys.userId, state.userId);
 updateProfile();
 resizeComposer();
 refreshSystemStatus();
+refreshCapabilities();
 window.setInterval(refreshSystemStatus, 30000);

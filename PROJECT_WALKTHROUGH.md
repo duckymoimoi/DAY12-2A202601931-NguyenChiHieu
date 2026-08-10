@@ -54,6 +54,22 @@ Nguyên tắc:
 - Production secret được nhập trong Render Dashboard hoặc qua `sync: false`.
 - Không in API key, connection string hay prompt nội bộ vào log/trace.
 
+Các thông số nền tảng đang dùng:
+
+| Biến | Giá trị local mặc định | Ý nghĩa |
+|---|---:|---|
+| `PORT` | `8000` | Cổng process lắng nghe; cloud có quyền ghi đè |
+| `AGENT_API_KEY` | Không có | Secret bắt buộc, thiếu thì app không khởi động |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis database số 0 khi chạy trực tiếp |
+| `RATE_LIMIT_PER_MINUTE` | `10` | Số request tối đa cho mỗi `X-User-ID` trong 60 giây |
+| `MONTHLY_BUDGET_USD` | `10.0` | Ngân sách mỗi user trong một tháng UTC |
+| `LOG_LEVEL` | `INFO` | Mức log của service |
+
+**Khó khăn thường gặp:** biến môi trường có thể đến từ `../.env`, `.env` hoặc Render nên
+rất dễ sửa nhầm file nhưng process vẫn đọc giá trị cũ. `Settings` còn được cache trong một
+process; sau khi đổi `.env` phải restart app/container. Trên cloud, thiếu `AGENT_API_KEY`
+làm startup thất bại là hành vi mong muốn, không nên “chữa” bằng cách thêm key mặc định.
+
 ### Bước 2 — Tạo tín hiệu vận hành
 
 Service cung cấp hai probe khác nhau:
@@ -69,6 +85,24 @@ bị khởi động lại liên tục. `/ready` mới quyết định instance c
 Log được xuất dạng JSON để nền tảng cloud có thể tìm kiếm theo event, status và user mà
 không phải tách một chuỗi log tự do.
 
+Thông số probe hiện tại:
+
+| Nơi kiểm tra | Chu kỳ | Timeout | Số lần lỗi | Endpoint |
+|---|---:|---:|---:|---|
+| Docker image | 30 giây | 5 giây | 3 | `/health` |
+| Docker Compose | 10 giây | 3 giây | 5 | `/health` |
+| Redis trong Compose | 10 giây | 3 giây | 5 | `redis-cli ping` |
+| Render | Do nền tảng quản lý | Do nền tảng quản lý | Do nền tảng quản lý | `/health` |
+
+`/health` trả `200` với version `1.0.0` khi process sống và trả `503` lúc shutdown.
+`/ready` trả `200` chỉ khi Redis `PING` thành công; Redis lỗi hoặc app đang shutdown thì
+trả `503`.
+
+**Khó khăn thường gặp:** nếu cho `/health` gọi Redis, một lỗi Redis ngắn sẽ khiến
+orchestrator restart cả app và tạo restart loop. Ngược lại, nếu `/ready` không kiểm tra
+Redis thì load balancer vẫn chuyển request vào instance chưa phục vụ được. Probe cũng phải
+nhẹ và hoàn thành trước timeout, nếu không một service khỏe vẫn bị đánh dấu lỗi.
+
 ### Bước 3 — Đóng gói bằng Docker
 
 `Dockerfile` dùng multi-stage build: stage đầu cài dependency, stage cuối chỉ nhận artifact
@@ -81,6 +115,26 @@ cần chạy. Container chạy bằng non-root user và chỉ copy những file 
 
 Tên service `redis` trở thành hostname nội bộ trong mạng Compose, vì vậy container dùng
 `redis://redis:6379/0`, không dùng `localhost`.
+
+Thông số container:
+
+| Thông số | Giá trị | Giải thích |
+|---|---|---|
+| Base image | `python:3.11-slim` | Dùng ở cả builder và runtime |
+| Runtime UID | `10001` | Process chạy bằng `appuser`, không chạy root |
+| Cổng trong container | `8000` | Uvicorn bind `0.0.0.0:8000` nếu không có `PORT` |
+| Cổng host Compose | `8001` | Mapping mặc định `${HOST_PORT:-8001}:8000` |
+| Redis image | `redis:7-alpine` | Nhẹ, bật AOF bằng `--appendonly yes` |
+| Redis volume | `redis-data:/data` | Giữ dữ liệu qua lần recreate container |
+
+Có thể đổi cổng ngoài bằng `HOST_PORT=8012`; việc này không đổi cổng `8000` bên trong
+container. `EXPOSE 8000` chỉ là metadata, không tự publish cổng ra máy host.
+
+**Khó khăn thường gặp:** dùng `localhost` từ container sẽ trỏ về chính container agent,
+không phải Redis. Các lỗi phổ biến khác là nhầm cổng host với cổng container, đưa `.env`
+hoặc cache vào image, và copy dependency build không đầy đủ sang runtime stage. Compose
+dùng `depends_on` kèm `service_healthy` để agent không khởi động trước Redis, nhưng ứng
+dụng vẫn cần `/ready` vì dependency có thể hỏng sau startup.
 
 ### Bước 4 — Bảo vệ tài nguyên production
 
@@ -95,8 +149,26 @@ request → API key → rate limit → cost guard → xử lý → lưu usage �
 - Cost guard chặn khi ngân sách tháng đã hết.
 - Chỉ ghi usage sau khi workload hoàn thành.
 
+Thông số guardrail:
+
+| Cơ chế | Giá trị hiện tại | Redis key/trạng thái |
+|---|---:|---|
+| API authentication | Một `AGENT_API_KEY` | So sánh constant-time bằng `compare_digest` |
+| Rate limit | 10 request / 60 giây / user | ZSET `ratelimit:<user_id>`, TTL 60 giây |
+| Cost guard | 10 USD / user / tháng UTC | `cost:<user_id>:YYYY-MM`, TTL 40 ngày |
+| Câu hỏi | 1–2000 ký tự | Pydantic kiểm tra trước khi xử lý |
+
+`X-User-ID` là đơn vị chia quota. Nếu client không gửi header này, mọi request dùng chung
+user `anonymous`, nên cũng dùng chung rate limit và ngân sách.
+
 Thứ tự này quan trọng: nếu gọi model trước rồi mới kiểm tra quota thì hệ thống vẫn mất tiền
 dù cuối cùng trả lỗi cho client.
+
+**Khó khăn thường gặp:** thứ tự “check trước, ghi nhận sau” dễ bị đảo và làm request thứ
+10 bị chặn sớm. Member trong Redis ZSET phải duy nhất; chỉ dùng timestamp có thể làm hai
+request ghi đè nhau. Cost guard hiện kiểm tra tổng đã ghi trước khi gọi model rồi ghi chi
+phí thực tế sau response; với nhiều request đồng thời vẫn có một khoảng vượt ngân sách nhỏ,
+muốn chặn tuyệt đối cần reserve ngân sách bằng thao tác Redis atomic.
 
 ### Bước 5 — Tách state để scale ngang
 
@@ -115,6 +187,23 @@ flowchart TB
 Khi Render gửi `SIGTERM`, instance chuyển sang trạng thái chưa ready, ngừng nhận request
 mới, chờ request đang chạy kết thúc rồi mới thoát. Đây là nền tảng của rolling deployment
 không làm rơi request.
+
+Thông số state:
+
+| Dữ liệu | Cấu trúc | Giới hạn/TTL |
+|---|---|---:|
+| Lịch sử hội thoại | Redis List `history:<user_id>` | 20 message gần nhất, TTL 7 ngày |
+| Rate limit | Redis Sorted Set | Cửa sổ và TTL 60 giây |
+| Chi phí | Redis String/float | TTL 40 ngày |
+
+Giới hạn 20 message ngăn prompt và chi phí token tăng vô hạn. TTL 7 ngày tự dọn hội thoại
+không còn hoạt động; TTL 40 ngày của chi phí giữ thêm dữ liệu để đối soát sau khi sang tháng.
+
+**Khó khăn thường gặp:** `fake://` tiện cho test nhưng vẫn là state trong RAM, vì vậy không
+được dùng ở production hoặc khi scale. Khi cài signal handler phải lưu và gọi lại handler
+của Uvicorn; nếu ghi đè mà không gọi handler cũ, app bật cờ shutdown nhưng không thoát và
+cuối cùng vẫn bị `SIGKILL`. Redis URL trên cloud còn có credential nên tuyệt đối không ghi
+nguyên chuỗi này vào log.
 
 ### Bước 6 — Khai báo hạ tầng Render
 
@@ -147,6 +236,30 @@ sequenceDiagram
     App-->>Render: 200 healthy
     Render-->>Dev: deployment live
 ```
+
+Thông số Blueprint production:
+
+| Nhóm | Giá trị |
+|---|---|
+| Web service | `day12-agent`, runtime Docker, plan `free` |
+| State service | `day12-redis`, Render Key Value plan `free` |
+| Health path | `/health` |
+| LLM | Groq `openai/gpt-oss-20b`, tối đa 650 output token |
+| Reasoning | `low`, không trả reasoning nội bộ |
+| RAG | Bật local RAG và web search |
+| Web retrieval | Tối đa 4 kết quả; scrape tối đa 1 trang |
+| Guardrail | 10 request/phút; 10 USD/tháng/user |
+| Fallback | Groq lỗi thì cho phép chuyển sang mock |
+
+Các secret cần nhập trên Render là `AGENT_API_KEY`, `GROQ_API_KEY`, `TAVILY_API_KEY` và
+`FIRECRAWL_API_KEY`. `REDIS_URL` không nhập tay: Blueprint lấy `connectionString` từ
+`day12-redis` để tránh sai hostname hoặc credential.
+
+**Khó khăn thường gặp:** Blueprint sync thành công chưa có nghĩa web service deploy thành
+công; phải mở build/start log của resource. Render cung cấp `PORT` động nên lệnh start phải
+dùng `${PORT:-8000}`. Free plan có thể cold start, khiến request đầu chậm hơn bình thường.
+Một lỗi secret thường chỉ lộ ở startup hoặc lúc gọi provider; vì vậy sau mỗi deploy phải
+kiểm tra lần lượt `/health`, `/ready` rồi mới kiểm thử `/ask`.
 
 ## 4. Các checkpoint và ý nghĩa
 
@@ -205,12 +318,17 @@ docker compose ps
 docker compose logs agent
 ```
 
+Compose xuất service tại `http://localhost:8001` theo mặc định. Muốn dùng cổng `8012`, đặt
+`HOST_PORT=8012` trong `.env` trước khi chạy `docker compose up`.
+
 ### Smoke test
 
 ```powershell
-Invoke-RestMethod http://localhost:8012/health
-Invoke-RestMethod http://localhost:8012/ready
-Invoke-RestMethod http://localhost:8012/capabilities
+# Chạy Uvicorn trực tiếp ở trên: 8012; chạy Compose mặc định: 8001
+$baseUrl = "http://localhost:8012"
+Invoke-RestMethod "$baseUrl/health"
+Invoke-RestMethod "$baseUrl/ready"
+Invoke-RestMethod "$baseUrl/capabilities"
 ```
 
 Với endpoint cần auth:
@@ -218,7 +336,7 @@ Với endpoint cần auth:
 ```powershell
 $headers = @{ "X-API-Key" = "<AGENT_API_KEY>" }
 $body = @{ question = "Giải thích readiness khi deploy" } | ConvertTo-Json
-Invoke-RestMethod http://localhost:8012/ask -Method Post -Headers $headers `
+Invoke-RestMethod "$baseUrl/ask" -Method Post -Headers $headers `
   -ContentType "application/json" -Body $body
 ```
 
@@ -275,6 +393,28 @@ Router không có nhánh riêng cho bất kỳ công nghệ cụ thể nào. Nó
 trong tài liệu local. Nếu còn thuật ngữ quan trọng chưa được phủ, Tavily nhận một truy
 vấn tổng quát ưu tiên tài liệu triển khai; kết quả được xếp hạng bằng dấu hiệu URL tài liệu
 thay vì bảng ánh xạ tên công nghệ → domain. Vì vậy một công cụ mới vẫn đi qua đúng luồng.
+
+Thông số workload mở rộng:
+
+| Thông số | Giá trị | Tác động |
+|---|---:|---|
+| `GROQ_TIMEOUT_SECONDS` | 25 giây | Hủy request provider bị treo quá lâu |
+| `GROQ_MAX_TOKENS` | 650 | Giới hạn độ dài và chi phí output |
+| `GROQ_TEMPERATURE` | 0.2 | Giữ câu trả lời ổn định hơn khi demo kỹ thuật |
+| `RAG_TOP_K` | 4 | Lấy tối đa 4 đoạn local phù hợp |
+| `RAG_MAX_CONTEXT_CHARS` | 9000 | Chặn context local phình quá lớn |
+| Ngưỡng phủ local | 0.8 | Dưới 80% thuật ngữ quan trọng thì cân nhắc web |
+| `WEB_SEARCH_TIMEOUT_SECONDS` | 10 giây | Timeout cho Tavily/Firecrawl |
+| `WEB_SEARCH_MAX_RESULTS` | 4, code chặn tối đa 8 | Số nguồn web đưa vào xử lý |
+| `WEB_SCRAPE_MAX_PAGES` | 1, code chặn tối đa 2 | Số trang Firecrawl đọc sâu |
+
+**Khó khăn của workload demo:** provider và web search đều là mạng ngoài nên latency có
+thể biến động hoặc hết quota. Web content là dữ liệu không tin cậy, chỉ được dùng làm
+context chứ không được phép điều khiển ứng dụng hay yêu cầu lộ secret. Nếu local corpus vô
+tình nhắc đúng tên một công nghệ nhưng không đủ nội dung, phép đo từ khóa có thể đánh giá
+độ phủ cao hơn thực tế; trace và danh sách source giúp phát hiện trường hợp này. Fallback
+mock giữ endpoint hoạt động khi Groq lỗi nhưng UI phải hiển thị rõ chế độ mock, tránh hiểu
+nhầm đó là câu trả lời từ model thật.
 
 Local RAG, web RAG và Groq giúp demo service có dependency, latency và chi phí thực tế.
 Chúng không thay đổi mục tiêu chính của bài: đóng gói, cấu hình, bảo vệ, scale, deploy và

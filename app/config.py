@@ -68,7 +68,6 @@ class Settings(BaseSettings):
     rag_enabled: bool = True
     rag_top_k: int = 4
     rag_max_context_chars: int = 9000
-    knowledge_dir: str = "knowledge"
 
     web_search_enabled: bool = False
     web_search_max_results: int = 4

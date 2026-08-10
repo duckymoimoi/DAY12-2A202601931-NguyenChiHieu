@@ -24,11 +24,11 @@ def test_local_retriever_finds_relevant_markdown(repo_root):
     assert all(result.source_type == "local" for result in results)
 
 
-def test_local_retriever_indexes_project_walkthrough(repo_root):
+def test_local_retriever_indexes_required_submission_docs(repo_root):
     retriever = LocalMarkdownRetriever(repo_root)
     results = retriever.search("operational trace luồng request", limit=8)
 
-    assert any(result.uri.startswith("PROJECT_WALKTHROUGH.md") for result in results)
+    assert any(result.uri.startswith("README.md") for result in results)
 
 
 def test_web_router_uses_web_for_current_information():
@@ -49,7 +49,7 @@ def test_web_router_detects_important_term_missing_from_local_sources():
     local_sources = [
         Source(
             "Triển khai web",
-            "PROJECT_WALKTHROUGH.md",
+            "README.md",
             "Hướng dẫn triển khai web service lên Render.",
             score=12.0,
         )

@@ -41,12 +41,10 @@ class LocalMarkdownRetriever:
         "README.md",
         "LAB_GUIDE.md",
         "DEPLOYMENT.md",
-        "PROJECT_WALKTHROUGH.md",
     )
 
-    def __init__(self, root: Path, knowledge_dir: str = "knowledge") -> None:
+    def __init__(self, root: Path) -> None:
         self.root = root
-        self.knowledge_dir = root / knowledge_dir
         self.sources = self._load_sources()
         self._tokens = [tokenize(f"{source.title} {source.content}") for source in self.sources]
         self._average_length = (
@@ -59,8 +57,6 @@ class LocalMarkdownRetriever:
 
     def _paths(self) -> list[Path]:
         paths = [self.root / name for name in self.DEFAULT_FILES]
-        if self.knowledge_dir.exists():
-            paths.extend(sorted(self.knowledge_dir.glob("*.md")))
         return [path for path in paths if path.is_file()]
 
     def _load_sources(self) -> list[Source]:

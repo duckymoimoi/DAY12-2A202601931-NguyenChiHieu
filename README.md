@@ -10,8 +10,8 @@ reliability → Render**. Chatbot không phải mục tiêu của buổi học; 
 trên hạ tầng để kiểm chứng auth, state, dependency, chi phí và trace trong điều kiện gần
 production.
 
-Tài liệu trình bày toàn bộ quy trình triển khai, kiến trúc, kiểm chứng production và kịch bản
-demo: [`PROJECT_WALKTHROUGH.md`](PROJECT_WALKTHROUGH.md).
+Quy trình từng checkpoint nằm trong [`LAB_GUIDE.md`](LAB_GUIDE.md); URL, cấu hình và kết
+quả kiểm chứng production nằm trong [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ## Workload demo mở rộng: Cloud Deployment Copilot
 
@@ -41,8 +41,8 @@ Ba secret `GROQ_API_KEY`, `TAVILY_API_KEY`, `FIRECRAWL_API_KEY` chỉ được l
 `LLM_FALLBACK_TO_MOCK=true`, endpoint vẫn hoạt động nhưng response ghi rõ đang dùng
 mock fallback.
 
-Corpus bổ sung nằm trong [`knowledge/`](knowledge/). Xem cấu hình mẫu đầy đủ tại
-[`.env.example`](.env.example).
+Local RAG dùng chính `README.md`, `LAB_GUIDE.md` và `DEPLOYMENT.md` làm corpus. Xem cấu
+hình mẫu đầy đủ tại [`.env.example`](.env.example).
 
 ---
 

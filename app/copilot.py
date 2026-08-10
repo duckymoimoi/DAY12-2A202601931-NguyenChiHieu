@@ -159,7 +159,7 @@ def _trace_step(
 class CloudCopilot:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.local_retriever = LocalMarkdownRetriever(ROOT, settings.knowledge_dir)
+        self.local_retriever = LocalMarkdownRetriever(ROOT)
 
     def capabilities(self) -> dict[str, Any]:
         provider = self.settings.llm_provider.casefold()

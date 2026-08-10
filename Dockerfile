@@ -16,8 +16,7 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app ./app
 COPY utils ./utils
-COPY knowledge ./knowledge
-COPY README.md LAB_GUIDE.md DEPLOYMENT.md PROJECT_WALKTHROUGH.md ./
+COPY README.md LAB_GUIDE.md DEPLOYMENT.md ./
 
 RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app

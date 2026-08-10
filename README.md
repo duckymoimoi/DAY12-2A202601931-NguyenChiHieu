@@ -11,6 +11,11 @@ thông tin hiện hành, agent tìm bằng Tavily và có thể dùng Firecrawl 
 trang. Response `/ask` trả thêm `provider`, `model`, `knowledge_mode` và `sources`
 nhưng vẫn giữ nguyên hợp đồng của các checkpoint.
 
+Giao diện render Markdown an toàn, bao gồm bảng, danh sách và code block. Mỗi câu trả
+lời có mục **Trace** dạng thu gọn để xem luồng auth → guardrails → Redis → RAG → Groq
+→ persistence cùng thời gian từng bước. Trace chỉ là telemetry vận hành, không chứa
+chain-of-thought, prompt nội bộ hoặc secret.
+
 Các chế độ được điều khiển hoàn toàn bằng biến môi trường:
 
 ```env

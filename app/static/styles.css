@@ -513,11 +513,124 @@ button {
   color: #d4d4d4;
   font-size: 14px;
   line-height: 1.7;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .message.user .message-body {
   color: #eee;
+  white-space: pre-wrap;
+}
+
+.message-body > :first-child {
+  margin-top: 0;
+}
+
+.message-body > :last-child {
+  margin-bottom: 0;
+}
+
+.message-body p {
+  margin: 0 0 12px;
+}
+
+.message-body h3,
+.message-body h4,
+.message-body h5,
+.message-body h6 {
+  margin: 18px 0 7px;
+  color: #f0f0f0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.message-body ul,
+.message-body ol {
+  margin: 8px 0 13px;
+  padding-left: 22px;
+}
+
+.message-body li {
+  margin: 4px 0;
+}
+
+.message-body code {
+  padding: 2px 5px;
+  border: 1px solid #303030;
+  border-radius: 5px;
+  background: #181818;
+  color: #ddd;
+  font: 0.88em/1.5 "SFMono-Regular", Consolas, monospace;
+}
+
+.message-body pre {
+  max-width: 100%;
+  margin: 12px 0;
+  padding: 13px 15px;
+  overflow-x: auto;
+  border: 1px solid #2c2c2c;
+  border-radius: 10px;
+  background: #101010;
+}
+
+.message-body pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  white-space: pre;
+}
+
+.message-body blockquote {
+  margin: 12px 0;
+  padding: 4px 0 4px 13px;
+  border-left: 2px solid #555;
+  color: #aaa;
+}
+
+.message-body hr {
+  height: 1px;
+  margin: 16px 0;
+  border: 0;
+  background: #2b2b2b;
+}
+
+.markdown-table-wrap {
+  max-width: 100%;
+  margin: 13px 0;
+  overflow-x: auto;
+  border: 1px solid #303030;
+  border-radius: 10px;
+}
+
+.message-body table {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: collapse;
+  background: #111;
+  font-size: 12px;
+}
+
+.message-body th,
+.message-body td {
+  padding: 9px 11px;
+  border-right: 1px solid #292929;
+  border-bottom: 1px solid #292929;
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-body th {
+  background: #1a1a1a;
+  color: #eee;
+  font-weight: 650;
+}
+
+.message-body tr:last-child td {
+  border-bottom: 0;
+}
+
+.message-body th:last-child,
+.message-body td:last-child {
+  border-right: 0;
 }
 
 .message-metrics {
@@ -564,6 +677,60 @@ button {
   margin: 10px 0 0;
   color: #d8a657;
   font-size: 10px;
+}
+
+.message-trace {
+  max-width: 720px;
+  margin-top: 13px;
+  border: 1px solid #292929;
+  border-radius: 9px;
+  background: #111;
+  color: #888;
+  font-size: 10px;
+}
+
+.message-trace summary {
+  padding: 8px 10px;
+  color: #aaa;
+  cursor: pointer;
+  user-select: none;
+}
+
+.message-trace ol {
+  margin: 0;
+  padding: 4px 12px 10px 31px;
+  border-top: 1px solid #252525;
+}
+
+.trace-step {
+  padding: 6px 0 6px 3px;
+}
+
+.trace-step::marker {
+  color: #55c78a;
+}
+
+.trace-step.warning::marker {
+  color: #d8a657;
+}
+
+.trace-step.skipped::marker {
+  color: #666;
+}
+
+.trace-step strong,
+.trace-step span {
+  display: block;
+}
+
+.trace-step strong {
+  color: #ccc;
+  font-weight: 600;
+}
+
+.trace-step span {
+  margin-top: 1px;
+  color: #707070;
 }
 
 .typing-dots {

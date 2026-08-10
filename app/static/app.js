@@ -142,6 +142,140 @@ function formatTime() {
   return new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date());
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderInlineMarkdown(value) {
+  const codeTokens = [];
+  let rendered = escapeHtml(value).replace(/`([^`\n]+)`/g, (_match, code) => {
+    const token = `@@INLINE_CODE_${codeTokens.length}@@`;
+    codeTokens.push(`<code>${code}</code>`);
+    return token;
+  });
+  rendered = rendered
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
+  codeTokens.forEach((code, index) => {
+    rendered = rendered.replace(`@@INLINE_CODE_${index}@@`, code);
+  });
+  return rendered;
+}
+
+function tableCells(line) {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+}
+
+function isTableDivider(line) {
+  const cells = tableCells(line);
+  return cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function renderMarkdown(markdown) {
+  const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+  const output = [];
+  let paragraph = [];
+  let index = 0;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    output.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`);
+    paragraph = [];
+  };
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("```")) {
+      flushParagraph();
+      const language = trimmed.slice(3).trim().match(/^[a-z0-9_+-]+/i)?.[0] || "";
+      const code = [];
+      index += 1;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        code.push(lines[index]);
+        index += 1;
+      }
+      output.push(`<pre><code${language ? ` class="language-${language}"` : ""}>${escapeHtml(code.join("\n"))}</code></pre>`);
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.includes("|") && index + 1 < lines.length && isTableDivider(lines[index + 1])) {
+      flushParagraph();
+      const headers = tableCells(trimmed);
+      const rows = [];
+      index += 2;
+      while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+        rows.push(tableCells(lines[index]));
+        index += 1;
+      }
+      const head = headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("");
+      const body = rows.map((row) => `<tr>${headers.map((_header, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || "")}</td>`).join("")}</tr>`).join("");
+      output.push(`<div class="markdown-table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`);
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      const level = Math.min(heading[1].length + 2, 6);
+      output.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+      index += 1;
+      continue;
+    }
+
+    const unordered = trimmed.match(/^[-*+]\s+(.+)$/);
+    const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    if (unordered || ordered) {
+      flushParagraph();
+      const tag = ordered ? "ol" : "ul";
+      const items = [];
+      while (index < lines.length) {
+        const match = lines[index].trim().match(tag === "ol" ? /^\d+[.)]\s+(.+)$/ : /^[-*+]\s+(.+)$/);
+        if (!match) break;
+        items.push(`<li>${renderInlineMarkdown(match[1])}</li>`);
+        index += 1;
+      }
+      output.push(`<${tag}>${items.join("")}</${tag}>`);
+      continue;
+    }
+
+    if (/^>{1}\s?/.test(trimmed)) {
+      flushParagraph();
+      const quotes = [];
+      while (index < lines.length && /^>{1}\s?/.test(lines[index].trim())) {
+        quotes.push(lines[index].trim().replace(/^>{1}\s?/, ""));
+        index += 1;
+      }
+      output.push(`<blockquote>${quotes.map(renderInlineMarkdown).join("<br>")}</blockquote>`);
+      continue;
+    }
+
+    if (/^([-*_])\1{2,}$/.test(trimmed)) {
+      flushParagraph();
+      output.push("<hr>");
+      index += 1;
+      continue;
+    }
+
+    if (!trimmed) {
+      flushParagraph();
+    } else {
+      paragraph.push(trimmed);
+    }
+    index += 1;
+  }
+  flushParagraph();
+  return output.join("");
+}
+
 function addMessage(role, text, metrics = null) {
   showConversation();
   const article = document.createElement("article");
@@ -162,7 +296,11 @@ function addMessage(role, text, metrics = null) {
 
   const body = document.createElement("div");
   body.className = "message-body";
-  body.textContent = text;
+  if (role === "assistant") {
+    body.innerHTML = renderMarkdown(text);
+  } else {
+    body.textContent = text;
+  }
   content.append(heading, body);
 
   if (metrics) {
@@ -209,6 +347,29 @@ function addMessage(role, text, metrics = null) {
       warning.className = "message-warning";
       warning.textContent = metrics.warning;
       content.append(warning);
+    }
+
+    if (metrics.trace?.steps?.length) {
+      const trace = document.createElement("details");
+      trace.className = "message-trace";
+      const summary = document.createElement("summary");
+      summary.textContent = `Trace ${metrics.trace.id} · ${Number(metrics.trace.total_ms).toFixed(0)} ms`;
+      trace.append(summary);
+
+      const steps = document.createElement("ol");
+      metrics.trace.steps.forEach((step) => {
+        const item = document.createElement("li");
+        item.className = `trace-step ${step.status || "ok"}`;
+        const label = document.createElement("strong");
+        label.textContent = step.label;
+        const meta = document.createElement("span");
+        const duration = step.duration_ms == null ? "verified" : `${Number(step.duration_ms).toFixed(1)} ms`;
+        meta.textContent = step.detail ? `${duration} · ${step.detail}` : duration;
+        item.append(label, meta);
+        steps.append(item);
+      });
+      trace.append(steps);
+      content.append(trace);
     }
   }
 

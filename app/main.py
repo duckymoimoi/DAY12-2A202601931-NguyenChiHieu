@@ -16,6 +16,8 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
+from time import perf_counter
+from uuid import uuid4
 
 from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse, JSONResponse
@@ -187,15 +189,68 @@ def ask(
     ``user_id`` do ``verify_api_key`` trả về, nên request không có API key
     hợp lệ sẽ dừng ở 401 trước khi chạm vào bất cứ dòng nào ở đây.
     """
+    request_started = perf_counter()
+    trace_id = uuid4().hex[:12]
+    trace_steps = [
+        {
+            "name": "auth",
+            "label": "API key authentication",
+            "status": "ok",
+            "duration_ms": None,
+            "detail": "X-API-Key hợp lệ",
+        }
+    ]
+
+    started_at = perf_counter()
     limiter.check(user_id)
+    trace_steps.append(
+        {
+            "name": "rate_limit",
+            "label": "Sliding-window rate limit",
+            "status": "ok",
+            "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+        }
+    )
+
+    started_at = perf_counter()
     guard.check(user_id)
+    trace_steps.append(
+        {
+            "name": "cost_guard",
+            "label": "Monthly cost guard",
+            "status": "ok",
+            "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+        }
+    )
 
+    started_at = perf_counter()
     history = store.get_history(user_id)
+    trace_steps.append(
+        {
+            "name": "history",
+            "label": "Redis conversation history",
+            "status": "ok",
+            "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+            "detail": f"{len(history)} messages",
+        }
+    )
     result = get_copilot().ask(payload.question, history)
+    trace_steps.extend(result.get("trace", []))
 
+    started_at = perf_counter()
     store.append(user_id, "user", payload.question)
     store.append(user_id, "assistant", result["answer"])
     guard.record(user_id, result["cost_usd"])
+    trace_steps.append(
+        {
+            "name": "persistence",
+            "label": "Persist history + cost",
+            "status": "ok",
+            "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+            "detail": "Redis",
+        }
+    )
+    total_ms = round((perf_counter() - request_started) * 1000, 2)
 
     log_event(
         "ask_completed",
@@ -203,6 +258,8 @@ def ask(
         tokens_in=result["tokens_in"],
         tokens_out=result["tokens_out"],
         cost_usd=result["cost_usd"],
+        trace_id=trace_id,
+        duration_ms=total_ms,
     )
 
     return {
@@ -219,6 +276,11 @@ def ask(
         "knowledge_mode": result.get("knowledge_mode", "offline"),
         "sources": result.get("sources", []),
         "warning": result.get("warning"),
+        "trace": {
+            "id": trace_id,
+            "total_ms": total_ms,
+            "steps": trace_steps,
+        },
     }
 
 

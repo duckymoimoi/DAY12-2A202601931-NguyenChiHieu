@@ -95,3 +95,27 @@ def test_mock_mode_keeps_offline_contract(monkeypatch):
     assert result["knowledge_mode"] == "offline"
     assert result["sources"] == []
     assert result["cost_usd"] > 0
+    assert result["trace"][0]["name"] == "llm"
+    assert result["trace"][0]["duration_ms"] >= 0
+
+
+def test_ask_returns_safe_operational_trace(client, auth_headers):
+    response = client.post(
+        "/ask",
+        json={"question": "Docker là gì?"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    trace = response.json()["trace"]
+
+    assert len(trace["id"]) == 12
+    assert trace["total_ms"] >= 0
+    names = [step["name"] for step in trace["steps"]]
+    assert names[:4] == ["auth", "rate_limit", "cost_guard", "history"]
+    assert "llm" in names
+    assert names[-1] == "persistence"
+
+    serialized = str(trace).casefold()
+    assert "x-api-key hợp lệ" in serialized
+    assert "test-api-key-cua-lab" not in serialized
+    assert "system_prompt" not in serialized

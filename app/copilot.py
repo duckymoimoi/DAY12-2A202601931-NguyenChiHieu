@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from utils.mock_llm import ask_llm as ask_mock_llm
@@ -86,6 +87,25 @@ def _context_block(sources: list[Source], max_chars: int) -> str:
     return "\n\n".join(blocks)
 
 
+def _trace_step(
+    name: str,
+    label: str,
+    started_at: float,
+    *,
+    status: str = "ok",
+    detail: str | None = None,
+) -> dict[str, Any]:
+    step: dict[str, Any] = {
+        "name": name,
+        "label": label,
+        "status": status,
+        "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+    }
+    if detail:
+        step["detail"] = detail
+    return step
+
+
 class CloudCopilot:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -108,7 +128,9 @@ class CloudCopilot:
 
     def ask(self, question: str, history: list[dict] | None = None) -> dict[str, Any]:
         history = history or []
+        trace: list[dict[str, Any]] = []
         if self.settings.llm_provider.casefold() != "groq":
+            started_at = perf_counter()
             result = ask_mock_llm(question, history)
             return {
                 **result,
@@ -116,12 +138,29 @@ class CloudCopilot:
                 "model": "mock-llm",
                 "knowledge_mode": "offline",
                 "sources": [],
+                "trace": [
+                    _trace_step(
+                        "llm",
+                        "Mock LLM",
+                        started_at,
+                        detail="Chế độ offline",
+                    )
+                ],
             }
 
+        started_at = perf_counter()
         local_sources = (
             self.local_retriever.search(question, self.settings.rag_top_k)
             if self.settings.rag_enabled
             else []
+        )
+        trace.append(
+            _trace_step(
+                "local_rag",
+                "Local Markdown RAG",
+                started_at,
+                detail=f"{len(local_sources)} nguồn",
+            )
         )
         sources = list(local_sources)
         web_attempted = False
@@ -134,6 +173,7 @@ class CloudCopilot:
             and should_search_web(question, local_sources)
         ):
             web_attempted = True
+            started_at = perf_counter()
             try:
                 web = WebRetriever(
                     tavily_api_key=self.settings.tavily_api_key,
@@ -147,8 +187,35 @@ class CloudCopilot:
                 # For questions explicitly routed to the web, current evidence must
                 # precede the stable lab corpus while both remain available.
                 sources = web_sources + local_sources
+                trace.append(
+                    _trace_step(
+                        "web_rag",
+                        "Tavily + Firecrawl",
+                        started_at,
+                        detail=f"{len(web_sources)} nguồn web",
+                    )
+                )
             except WebRetrievalError:
                 web_warning = "Không thể truy vấn web; câu trả lời chỉ dùng tài liệu local."
+                trace.append(
+                    _trace_step(
+                        "web_rag",
+                        "Tavily + Firecrawl",
+                        started_at,
+                        status="warning",
+                        detail="Web retrieval không khả dụng",
+                    )
+                )
+        elif self.settings.web_search_enabled:
+            trace.append(
+                {
+                    "name": "web_rag",
+                    "label": "Web RAG",
+                    "status": "skipped",
+                    "duration_ms": 0.0,
+                    "detail": "Tài liệu local đã đủ",
+                }
+            )
 
         context = _context_block(sources, self.settings.rag_max_context_chars)
         messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -166,6 +233,7 @@ class CloudCopilot:
                 messages.append({"role": role, "content": content[:4000]})
         messages.append({"role": "user", "content": question})
 
+        started_at = perf_counter()
         try:
             provider = GroqProvider(
                 api_key=self.settings.groq_api_key or "",
@@ -180,6 +248,14 @@ class CloudCopilot:
                 output_price_per_million=self.settings.groq_output_price_per_million,
             )
             result = provider.complete(messages)
+            trace.append(
+                _trace_step(
+                    "llm",
+                    "Groq inference",
+                    started_at,
+                    detail=self.settings.groq_model,
+                )
+            )
         except LLMProviderError as exc:
             if not self.settings.llm_fallback_to_mock:
                 raise
@@ -190,6 +266,15 @@ class CloudCopilot:
                 "model": "mock-llm",
                 "warning": f"Groq tạm thời không khả dụng ({exc}); đã dùng mock fallback.",
             }
+            trace.append(
+                _trace_step(
+                    "llm",
+                    "Groq → Mock fallback",
+                    started_at,
+                    status="warning",
+                    detail=str(exc),
+                )
+            )
 
         public_sources = [source.public() for source in sources]
         if result["provider"] == "mock":
@@ -206,6 +291,7 @@ class CloudCopilot:
                 "knowledge_mode": knowledge_mode,
                 "sources": public_sources,
                 "web_attempted": web_attempted,
+                "trace": trace,
             }
         )
         if web_warning:

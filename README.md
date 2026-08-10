@@ -3,7 +3,17 @@
 Đưa một AI agent từ `localhost:8000` lên một địa chỉ công khai mà người khác
 gọi được, có bảo mật, có giới hạn chi phí, và không sập khi bạn deploy bản mới.
 
-## Cloud Deployment Copilot
+## Trọng tâm: quy trình deployment
+
+Nội dung chính của dự án là chuỗi **config → health/logging → Docker → security → Redis →
+reliability → Render**. Chatbot không phải mục tiêu của buổi học; nó là workload demo đặt
+trên hạ tầng để kiểm chứng auth, state, dependency, chi phí và trace trong điều kiện gần
+production.
+
+Tài liệu trình bày toàn bộ quy trình triển khai, kiến trúc, kiểm chứng production và kịch bản
+demo: [`PROJECT_WALKTHROUGH.md`](PROJECT_WALKTHROUGH.md).
+
+## Workload demo mở rộng: Cloud Deployment Copilot
 
 Trang chủ hiện là chatbot demo dùng Groq và hybrid RAG cho chủ đề triển khai AI
 service. Agent ưu tiên tài liệu Markdown trong repo; với câu hỏi liên quan nhưng cần
@@ -33,9 +43,6 @@ mock fallback.
 
 Corpus bổ sung nằm trong [`knowledge/`](knowledge/). Xem cấu hình mẫu đầy đủ tại
 [`.env.example`](.env.example).
-
-Tài liệu trình bày toàn bộ nội dung buổi học, kiến trúc, sequence request và kịch bản
-demo: [`PROJECT_WALKTHROUGH.md`](PROJECT_WALKTHROUGH.md).
 
 ---
 

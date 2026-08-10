@@ -12,7 +12,7 @@ from app.copilot import (
 )
 from app.llm.groq import GroqProvider
 from app.rag.local import LocalMarkdownRetriever, Source
-from app.rag.web import _domain_allowed, search_query_for_web, trusted_domains_for_query
+from app.rag.web import search_query_for_web, source_quality_score
 
 
 def test_local_retriever_finds_relevant_markdown(repo_root):
@@ -74,26 +74,26 @@ def test_context_reserves_room_for_every_source():
         assert f"Source {index}" in context
 
 
-def test_web_search_prefers_official_domain_for_known_topic():
-    assert trusted_domains_for_query("Groq hiện hỗ trợ model nào?") == ["console.groq.com"]
-    assert trusted_domains_for_query("Docker trên Render") == [
-        "render.com",
-        "docs.docker.com",
-    ]
-    query = search_query_for_web(
-        "Hiện nay Groq dùng model thay thế nào?", ["console.groq.com"]
+def test_web_search_query_is_generic_and_documentation_focused():
+    query = search_query_for_web("Triển khai web bằng một công cụ mới")
+
+    assert "official documentation deployment guide" in query
+    assert "site:" not in query
+
+
+def test_web_search_adds_generic_freshness_terms():
+    query = search_query_for_web("Hiện nay công cụ này dùng phiên bản nào?")
+
+    assert "latest current version deprecation replacement" in query
+
+
+def test_documentation_urls_receive_a_generic_quality_bonus():
+    docs_score = source_quality_score(
+        "https://developer.example.com/docs/deployment/tutorial"
     )
-    assert "site:console.groq.com" in query
-    assert "deprecation replacement" in query
-    assert _domain_allowed("https://console.groq.com/docs/models", ["console.groq.com"])
-    assert not _domain_allowed("https://example.com/groq", ["console.groq.com"])
-    assert trusted_domains_for_query("Terraform dùng thế nào?") == [
-        "developer.hashicorp.com"
-    ]
-    terraform_query = search_query_for_web(
-        "Triển khai web bằng Terraform", ["developer.hashicorp.com"]
-    )
-    assert "terraform deploy web application" in terraform_query
+    generic_score = source_quality_score("https://example.com/watch")
+
+    assert docs_score > generic_score
 
 
 def test_groq_provider_parses_usage_and_cost():

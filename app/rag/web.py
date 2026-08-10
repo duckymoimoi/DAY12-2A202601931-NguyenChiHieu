@@ -15,55 +15,32 @@ class WebRetrievalError(RuntimeError):
     pass
 
 
-TRUSTED_DOMAIN_HINTS = {
-    "groq": ["console.groq.com"],
-    "render": ["render.com"],
-    "docker": ["docs.docker.com"],
-    "redis": ["redis.io"],
-    "fastapi": ["fastapi.tiangolo.com"],
-    "github": ["docs.github.com"],
-    "kubernetes": ["kubernetes.io"],
-    "python": ["docs.python.org"],
-    "terraform": ["developer.hashicorp.com"],
-}
-
-SEARCH_QUERY_EXPANSIONS = {
-    "terraform": "terraform deploy web application infrastructure as code tutorial",
-    "kubernetes": "kubernetes deployment service official documentation",
-    "ansible": "ansible deploy web application official documentation",
+CURRENT_INFORMATION_MARKERS = {
+    "hien nay", "moi nhat", "current", "latest", "deprecated",
+    "deprecation", "replacement", "ngung", "thay the",
 }
 
 
-def trusted_domains_for_query(query: str) -> list[str]:
+def search_query_for_web(query: str) -> str:
+    """Build an entity-agnostic query that favours deployment documentation."""
     normalized = normalize(query)
-    domains: list[str] = []
-    for marker, candidates in TRUSTED_DOMAIN_HINTS.items():
-        if marker in normalized:
-            domains.extend(candidates)
-    return list(dict.fromkeys(domains))[:5]
+    suffix = "official documentation deployment guide"
+    if any(marker in normalized for marker in CURRENT_INFORMATION_MARKERS):
+        suffix += " latest current version deprecation replacement"
+    return f"{normalized} {suffix}".strip()
 
 
-def search_query_for_web(query: str, trusted_domains: list[str]) -> str:
-    if not trusted_domains:
-        return query
-    normalized = normalize(query)
-    suffix = " official documentation"
-    for marker, expansion in SEARCH_QUERY_EXPANSIONS.items():
-        if marker in normalized:
-            suffix += f" {expansion}"
-    if "groq" in normalized and any(
-        marker in normalized for marker in ("thay", "ngung", "deprecat", "replacement")
-    ):
-        suffix += " deprecation replacement"
-    sites = " ".join(f"site:{domain}" for domain in trusted_domains)
-    return f"{normalized} {suffix} {sites}".strip()
-
-
-def _domain_allowed(url: str, trusted_domains: list[str]) -> bool:
-    if not trusted_domains:
-        return True
-    hostname = (urlparse(url).hostname or "").casefold()
-    return any(hostname == domain or hostname.endswith(f".{domain}") for domain in trusted_domains)
+def source_quality_score(url: str) -> float:
+    """Rank documentation-like URLs without knowing the product in advance."""
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").casefold()
+    path = parsed.path.casefold()
+    score = 0.05 if parsed.scheme == "https" else 0.0
+    if hostname.startswith(("docs.", "developer.", "developers.")):
+        score += 0.25
+    if any(part in path for part in ("/docs", "/documentation", "/guide", "/tutorial", "/reference")):
+        score += 0.15
+    return score
 
 
 def _safe_public_url(url: str) -> bool:
@@ -108,16 +85,13 @@ class WebRetriever:
         self.transport = transport
 
     def search(self, query: str) -> list[Source]:
-        trusted_domains = trusted_domains_for_query(query)
         request_body = {
-            "query": search_query_for_web(query, trusted_domains),
+            "query": search_query_for_web(query),
             "search_depth": "basic",
             "max_results": self.max_results,
             "include_answer": False,
             "include_raw_content": False,
         }
-        if trusted_domains:
-            request_body["include_domains"] = trusted_domains
         try:
             with httpx.Client(timeout=self.timeout_seconds, transport=self.transport) as client:
                 response = client.post(
@@ -130,20 +104,21 @@ class WebRetriever:
         except (httpx.HTTPError, ValueError, TypeError) as exc:
             raise WebRetrievalError("Tavily search failed") from exc
 
-        sources: list[Source] = []
+        candidates: list[Source] = []
         for row in rows:
             url = str(row.get("url", ""))
-            if not _domain_allowed(url, trusted_domains) or not _safe_public_url(url):
+            if not _safe_public_url(url):
                 continue
-            sources.append(
+            candidates.append(
                 Source(
                     title=str(row.get("title") or url),
                     uri=url,
                     content=str(row.get("content") or "")[:5000],
                     source_type="web",
-                    score=float(row.get("score") or 0.0),
+                    score=float(row.get("score") or 0.0) + source_quality_score(url),
                 )
             )
+        sources = sorted(candidates, key=lambda source: source.score, reverse=True)
 
         if self.scrape_enabled and self.firecrawl_api_key:
             for index, source in enumerate(sources[: self.scrape_max_pages]):

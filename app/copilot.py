@@ -43,7 +43,6 @@ TOPIC_MARKERS = {
     "llm", "logging", "nginx", "observability", "rag", "rate limit", "redis",
     "render", "scaling", "security", "server", "tavily", "token", "uvicorn",
     "vector", "web", "12-factor", "readiness", "liveness", "cost guard",
-    "terraform", "infrastructure", "iac", "ansible",
 }
 
 LOCAL_COVERAGE_THRESHOLD = 0.8

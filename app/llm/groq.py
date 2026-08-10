@@ -21,6 +21,8 @@ class GroqProvider:
         timeout_seconds: float,
         max_tokens: int,
         temperature: float,
+        reasoning_effort: str,
+        include_reasoning: bool,
         input_price_per_million: float,
         output_price_per_million: float,
         transport: httpx.BaseTransport | None = None,
@@ -33,6 +35,8 @@ class GroqProvider:
         self.timeout_seconds = timeout_seconds
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.reasoning_effort = reasoning_effort
+        self.include_reasoning = include_reasoning
         self.input_price_per_million = input_price_per_million
         self.output_price_per_million = output_price_per_million
         self.transport = transport
@@ -48,6 +52,8 @@ class GroqProvider:
                         "messages": messages,
                         "temperature": self.temperature,
                         "max_tokens": self.max_tokens,
+                        "reasoning_effort": self.reasoning_effort,
+                        "include_reasoning": self.include_reasoning,
                     },
                 )
                 response.raise_for_status()

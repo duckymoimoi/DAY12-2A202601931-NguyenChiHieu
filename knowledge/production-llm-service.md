@@ -25,6 +25,13 @@ Nguồn chính thức:
 - https://console.groq.com/docs/models
 - https://console.groq.com/docs/deprecations
 
+Theo bảng deprecation được kiểm tra ngày 2026-08-10, Groq dự kiến ngừng
+`llama-3.1-8b-instant` ngày 2026-08-16 trên free/developer tier và khuyến nghị
+`openai/gpt-oss-20b` thay thế. Với `llama-3.3-70b-versatile`, lựa chọn thay thế là
+`openai/gpt-oss-120b` hoặc `qwen/qwen3.6-27b`. Vì trạng thái model thay đổi theo
+thời gian, agent vẫn phải kiểm tra trang deprecation chính thức khi người dùng hỏi
+"hiện nay" hoặc "mới nhất".
+
 ## Token và cost guard
 
 Token thực tế lấy từ trường `usage.prompt_tokens` và `usage.completion_tokens` trong

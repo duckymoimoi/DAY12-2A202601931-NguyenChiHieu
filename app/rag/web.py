@@ -8,11 +8,52 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .local import Source
+from .local import Source, normalize
 
 
 class WebRetrievalError(RuntimeError):
     pass
+
+
+TRUSTED_DOMAIN_HINTS = {
+    "groq": ["console.groq.com"],
+    "render": ["render.com"],
+    "docker": ["docs.docker.com"],
+    "redis": ["redis.io"],
+    "fastapi": ["fastapi.tiangolo.com"],
+    "github": ["docs.github.com"],
+    "kubernetes": ["kubernetes.io"],
+    "python": ["docs.python.org"],
+}
+
+
+def trusted_domains_for_query(query: str) -> list[str]:
+    normalized = normalize(query)
+    domains: list[str] = []
+    for marker, candidates in TRUSTED_DOMAIN_HINTS.items():
+        if marker in normalized:
+            domains.extend(candidates)
+    return list(dict.fromkeys(domains))[:5]
+
+
+def search_query_for_web(query: str, trusted_domains: list[str]) -> str:
+    if not trusted_domains:
+        return query
+    normalized = normalize(query)
+    suffix = " official documentation"
+    if "groq" in normalized and any(
+        marker in normalized for marker in ("thay", "ngung", "deprecat", "replacement")
+    ):
+        suffix += " deprecation replacement"
+    sites = " ".join(f"site:{domain}" for domain in trusted_domains)
+    return f"{normalized} {suffix} {sites}".strip()
+
+
+def _domain_allowed(url: str, trusted_domains: list[str]) -> bool:
+    if not trusted_domains:
+        return True
+    hostname = (urlparse(url).hostname or "").casefold()
+    return any(hostname == domain or hostname.endswith(f".{domain}") for domain in trusted_domains)
 
 
 def _safe_public_url(url: str) -> bool:
@@ -57,18 +98,22 @@ class WebRetriever:
         self.transport = transport
 
     def search(self, query: str) -> list[Source]:
+        trusted_domains = trusted_domains_for_query(query)
+        request_body = {
+            "query": search_query_for_web(query, trusted_domains),
+            "search_depth": "basic",
+            "max_results": self.max_results,
+            "include_answer": False,
+            "include_raw_content": False,
+        }
+        if trusted_domains:
+            request_body["include_domains"] = trusted_domains
         try:
             with httpx.Client(timeout=self.timeout_seconds, transport=self.transport) as client:
                 response = client.post(
                     "https://api.tavily.com/search",
                     headers={"Authorization": f"Bearer {self.tavily_api_key}"},
-                    json={
-                        "query": query,
-                        "search_depth": "basic",
-                        "max_results": self.max_results,
-                        "include_answer": False,
-                        "include_raw_content": False,
-                    },
+                    json=request_body,
                 )
                 response.raise_for_status()
                 rows = response.json().get("results", [])
@@ -78,7 +123,7 @@ class WebRetriever:
         sources: list[Source] = []
         for row in rows:
             url = str(row.get("url", ""))
-            if not _safe_public_url(url):
+            if not _domain_allowed(url, trusted_domains) or not _safe_public_url(url):
                 continue
             sources.append(
                 Source(

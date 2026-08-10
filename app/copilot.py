@@ -174,6 +174,8 @@ class CloudCopilot:
                 timeout_seconds=self.settings.groq_timeout_seconds,
                 max_tokens=self.settings.groq_max_tokens,
                 temperature=self.settings.groq_temperature,
+                reasoning_effort=self.settings.groq_reasoning_effort,
+                include_reasoning=self.settings.groq_include_reasoning,
                 input_price_per_million=self.settings.groq_input_price_per_million,
                 output_price_per_million=self.settings.groq_output_price_per_million,
             )

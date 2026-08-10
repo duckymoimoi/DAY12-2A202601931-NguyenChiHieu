@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     groq_timeout_seconds: float = 25.0
     groq_max_tokens: int = 650
     groq_temperature: float = 0.2
+    groq_reasoning_effort: str = "low"
+    groq_include_reasoning: bool = False
     groq_input_price_per_million: float = 0.075
     groq_output_price_per_million: float = 0.30
 

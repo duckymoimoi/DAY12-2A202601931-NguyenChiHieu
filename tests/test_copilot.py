@@ -6,6 +6,7 @@ from app.config import Settings
 from app.copilot import CloudCopilot, _context_block, should_search_web
 from app.llm.groq import GroqProvider
 from app.rag.local import LocalMarkdownRetriever, Source
+from app.rag.web import _domain_allowed, search_query_for_web, trusted_domains_for_query
 
 
 def test_local_retriever_finds_relevant_markdown(repo_root):
@@ -35,9 +36,27 @@ def test_context_reserves_room_for_every_source():
         assert f"Source {index}" in context
 
 
+def test_web_search_prefers_official_domain_for_known_topic():
+    assert trusted_domains_for_query("Groq hiện hỗ trợ model nào?") == ["console.groq.com"]
+    assert trusted_domains_for_query("Docker trên Render") == [
+        "render.com",
+        "docs.docker.com",
+    ]
+    query = search_query_for_web(
+        "Hiện nay Groq dùng model thay thế nào?", ["console.groq.com"]
+    )
+    assert "site:console.groq.com" in query
+    assert "deprecation replacement" in query
+    assert _domain_allowed("https://console.groq.com/docs/models", ["console.groq.com"])
+    assert not _domain_allowed("https://example.com/groq", ["console.groq.com"])
+
+
 def test_groq_provider_parses_usage_and_cost():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["Authorization"] == "Bearer test-key"
+        body = __import__("json").loads(request.content)
+        assert body["reasoning_effort"] == "low"
+        assert body["include_reasoning"] is False
         return httpx.Response(
             200,
             json={
@@ -53,6 +72,8 @@ def test_groq_provider_parses_usage_and_cost():
         timeout_seconds=2,
         max_tokens=100,
         temperature=0.2,
+        reasoning_effort="low",
+        include_reasoning=False,
         input_price_per_million=0.075,
         output_price_per_million=0.30,
         transport=httpx.MockTransport(handler),

@@ -170,6 +170,15 @@ request ghi đè nhau. Cost guard hiện kiểm tra tổng đã ghi trước khi
 phí thực tế sau response; với nhiều request đồng thời vẫn có một khoảng vượt ngân sách nhỏ,
 muốn chặn tuyệt đối cần reserve ngân sách bằng thao tác Redis atomic.
 
+Có thể kiểm tra trực tiếp trên giao diện bằng nút **Test limits**. Endpoint
+`POST /guardrails/test` cần API key hợp lệ, tạo một namespace Redis tạm và xác nhận:
+
+- Đúng số request trong cửa sổ được đi qua, request kế tiếp bị `429`.
+- Chi phí giả cao hơn ngân sách bị `402`.
+- `llm_calls = 0` và `cost_recorded = false`.
+
+Namespace rate-limit tự hết hạn sau 60 giây, không dùng chung quota với `/ask`.
+
 ### Bước 5 — Tách state để scale ngang
 
 Lịch sử hội thoại, cửa sổ rate limit và chi phí tích lũy được lưu trong Redis. Instance

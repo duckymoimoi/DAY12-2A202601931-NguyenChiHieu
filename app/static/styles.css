@@ -953,6 +953,75 @@ button {
   line-height: 1.45;
 }
 
+.button-link {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.guardrail-diagnostic {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid #2b2b2b;
+  border-radius: 12px;
+  background: #0d0d0d;
+}
+
+.guardrail-diagnostic h3 {
+  margin: 5px 0 7px;
+  font-size: 14px;
+}
+
+.guardrail-diagnostic > p:not(.eyebrow) {
+  margin: 0 0 13px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.guardrail-results {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.guardrail-results[hidden] {
+  display: none;
+}
+
+.diagnostic-row {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid #303030;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.diagnostic-row span,
+.guardrail-results small,
+.diagnostic-pending {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.diagnostic-row.passed {
+  border-color: rgb(76 205 136 / 32%);
+}
+
+.diagnostic-row.passed strong {
+  color: #73d9a2;
+}
+
+.diagnostic-row.failed {
+  border-color: rgb(255 114 114 / 35%);
+}
+
+.diagnostic-row.failed strong {
+  color: #ffabab;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;

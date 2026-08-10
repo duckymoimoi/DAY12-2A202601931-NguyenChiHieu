@@ -19,7 +19,7 @@ from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -147,6 +147,71 @@ def ready(store: ConversationStore = Depends(get_store)):
         )
 
     return {"status": "ready", "redis": True}
+
+
+@app.post("/guardrails/test")
+def test_guardrails(
+    user_id: str = Depends(verify_api_key),
+    limiter: RateLimiter = Depends(get_rate_limiter),
+    guard: CostGuard = Depends(get_cost_guard),
+):
+    """Run an isolated guardrail diagnostic without calling the LLM.
+
+    The temporary rate-limit key expires normally after 60 seconds. Cost is only
+    estimated for ``check`` and is never recorded, so this endpoint cannot consume
+    a user's real monthly budget.
+    """
+    run_id = uuid4().hex[:12]
+    test_user = f"guardrail-test:{user_id}:{run_id}"
+    tested_limit = min(max(limiter.limit, 1), 50)
+    diagnostic_limiter = RateLimiter(limiter.client, tested_limit)
+
+    allowed_requests = 0
+    rate_status = None
+    for _ in range(tested_limit + 1):
+        try:
+            diagnostic_limiter.check(test_user)
+            allowed_requests += 1
+        except HTTPException as exc:
+            rate_status = exc.status_code
+            break
+
+    simulated_cost = guard.budget + max(0.01, guard.budget * 0.01)
+    cost_status = None
+    try:
+        guard.check(test_user, estimated_cost=simulated_cost)
+    except HTTPException as exc:
+        cost_status = exc.status_code
+
+    log_event(
+        "guardrail_test_completed",
+        user_id=user_id,
+        run_id=run_id,
+        rate_limit_protected=rate_status == 429,
+        cost_guard_protected=cost_status == 402,
+        llm_calls=0,
+    )
+
+    return {
+        "run_id": run_id,
+        "isolated": True,
+        "llm_calls": 0,
+        "rate_limit": {
+            "protected": rate_status == 429,
+            "status_code": rate_status,
+            "configured_limit": limiter.limit,
+            "tested_limit": tested_limit,
+            "allowed_requests": allowed_requests,
+            "window_seconds": 60,
+        },
+        "cost_guard": {
+            "protected": cost_status == 402,
+            "status_code": cost_status,
+            "monthly_budget_usd": guard.budget,
+            "simulated_cost_usd": round(simulated_cost, 6),
+            "cost_recorded": False,
+        },
+    }
 
 
 # ─────────────────────────────────────────────────────────────

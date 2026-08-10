@@ -164,3 +164,31 @@ def test_ask_returns_safe_operational_trace(client, auth_headers):
     assert "x-api-key hợp lệ" in serialized
     assert "test-api-key-cua-lab" not in serialized
     assert "system_prompt" not in serialized
+
+
+def test_guardrail_diagnostic_requires_authentication(client):
+    response = client.post("/guardrails/test")
+
+    assert response.status_code == 401
+
+
+def test_guardrail_diagnostic_isolated_and_free(client_factory, auth_headers):
+    response = client_factory(rate_limit=3, budget=1.0).post(
+        "/guardrails/test", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["isolated"] is True
+    assert body["llm_calls"] == 0
+    assert body["rate_limit"] == {
+        "protected": True,
+        "status_code": 429,
+        "configured_limit": 3,
+        "tested_limit": 3,
+        "allowed_requests": 3,
+        "window_seconds": 60,
+    }
+    assert body["cost_guard"]["protected"] is True
+    assert body["cost_guard"]["status_code"] == 402
+    assert body["cost_guard"]["cost_recorded"] is False

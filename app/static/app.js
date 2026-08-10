@@ -27,6 +27,9 @@ const elements = {
   modelName: document.querySelector("#model-name"),
   modelState: document.querySelector("#model-state"),
   modelDisclaimer: document.querySelector("#model-disclaimer"),
+  openGuardrailTest: document.querySelector("#open-guardrail-test"),
+  runGuardrailTest: document.querySelector("#run-guardrail-test"),
+  guardrailResults: document.querySelector("#guardrail-results"),
 };
 
 const storageKeys = {
@@ -79,6 +82,53 @@ function saveSettings(event) {
   elements.settingsDialog.close();
   showToast("Đã lưu kết nối trong session hiện tại.");
   elements.input.focus();
+}
+
+async function runGuardrailTest() {
+  const apiKey = elements.apiKeyInput.value.trim() || state.apiKey;
+  const userId = elements.userIdInput.value.trim() || state.userId;
+  if (!apiKey || !userId) {
+    showToast("Hãy nhập API key và User ID trước khi kiểm thử.", true);
+    return;
+  }
+
+  elements.runGuardrailTest.disabled = true;
+  elements.runGuardrailTest.textContent = "Đang kiểm thử...";
+  elements.guardrailResults.hidden = false;
+  elements.guardrailResults.innerHTML = '<span class="diagnostic-pending">Đang tạo lượt test Redis riêng...</span>';
+
+  try {
+    const response = await fetch("/guardrails/test", {
+      method: "POST",
+      headers: {
+        "X-API-Key": apiKey,
+        "X-User-Id": userId,
+      },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(errorMessage(response.status, payload.detail));
+    }
+
+    const ratePassed = payload.rate_limit?.protected === true;
+    const costPassed = payload.cost_guard?.protected === true;
+    elements.guardrailResults.innerHTML = `
+      <div class="diagnostic-row ${ratePassed ? "passed" : "failed"}">
+        <strong>${ratePassed ? "✓" : "×"} Rate limit</strong>
+        <span>${payload.rate_limit.allowed_requests}/${payload.rate_limit.tested_limit} request qua, sau đó HTTP ${payload.rate_limit.status_code ?? "?"}</span>
+      </div>
+      <div class="diagnostic-row ${costPassed ? "passed" : "failed"}">
+        <strong>${costPassed ? "✓" : "×"} Cost guard</strong>
+        <span>$${Number(payload.cost_guard.simulated_cost_usd).toFixed(2)} bị chặn với HTTP ${payload.cost_guard.status_code ?? "?"}</span>
+      </div>
+      <small>Run ${escapeHtml(payload.run_id)} · ${payload.llm_calls} LLM calls · không ghi chi phí</small>
+    `;
+  } catch (error) {
+    elements.guardrailResults.innerHTML = `<div class="diagnostic-row failed"><strong>× Không chạy được</strong><span>${escapeHtml(error.message)}</span></div>`;
+  } finally {
+    elements.runGuardrailTest.disabled = false;
+    elements.runGuardrailTest.textContent = "Chạy lại kiểm thử";
+  }
 }
 
 function setStatus(kind, online, label) {
@@ -506,6 +556,11 @@ elements.toggleKey.addEventListener("click", () => {
   elements.toggleKey.textContent = reveal ? "Ẩn" : "Hiện";
 });
 document.querySelectorAll("#open-settings, #top-settings").forEach((button) => button.addEventListener("click", openSettings));
+elements.openGuardrailTest.addEventListener("click", () => {
+  openSettings();
+  window.setTimeout(() => elements.runGuardrailTest.focus(), 80);
+});
+elements.runGuardrailTest.addEventListener("click", runGuardrailTest);
 document.querySelectorAll("[data-prompt]").forEach((button) => {
   button.addEventListener("click", () => {
     elements.input.value = button.dataset.prompt;

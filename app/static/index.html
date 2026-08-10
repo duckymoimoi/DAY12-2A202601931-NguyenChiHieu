@@ -70,6 +70,7 @@
             <small id="model-state">checking</small>
           </div>
           <div class="topbar-actions">
+            <button class="text-link button-link" id="open-guardrail-test" type="button">Test limits</button>
             <a class="text-link" href="/docs" target="_blank" rel="noreferrer">API Docs</a>
             <button class="icon-button" id="top-settings" type="button" aria-label="Cài đặt">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -154,6 +155,17 @@
         <label class="field-label" for="user-id-input">User ID</label>
         <input class="text-field" id="user-id-input" type="text" maxlength="80" placeholder="Ví dụ: sv-01" />
         <p class="field-hint">User ID xác định lịch sử, rate limit và ngân sách riêng trên Redis.</p>
+
+        <section class="guardrail-diagnostic" aria-labelledby="guardrail-title">
+          <p class="eyebrow">PRODUCTION GUARDRAILS</p>
+          <h3 id="guardrail-title">Kiểm thử giới hạn bảo vệ</h3>
+          <p>
+            Kiểm tra xác thực, rate limit và cost guard bằng dữ liệu Redis tạm.
+            Không gọi LLM, không tốn token và không trừ ngân sách thật.
+          </p>
+          <button class="secondary-button" id="run-guardrail-test" type="button">Chạy kiểm thử</button>
+          <div class="guardrail-results" id="guardrail-results" hidden aria-live="polite"></div>
+        </section>
 
         <div class="dialog-actions">
           <button class="secondary-button" value="cancel" type="submit">Hủy</button>

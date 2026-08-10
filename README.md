@@ -132,18 +132,12 @@ Sau buổi lab này, bạn sẽ:
 | 11h40–12h20 | **Block 4** — Scaling & Reliability | **CP4 (12h20):** `pytest tests/test_cp4.py -v` | 20 |
 | 12h20–12h50 | **Block 5** — Deploy lên cloud | **CP5 (12h50):** `pytest tests/test_cp5.py -v` | 15 |
 | 12h50–13h00 | Hoàn thiện `exercises.md`, `python grade.py`, nộp bài | | 15 |
-| — | **BONUS** — CI/CD với GitHub Actions (không bắt buộc) | `pytest tests/test_bonus_cicd.py -v` | +10 |
 
 **Cách dùng checkpoint:** đến mốc giờ nào thì chạy lệnh của checkpoint đó. Xanh
 hết → sang block sau. Còn đỏ → đọc thông báo lỗi (mỗi test đều ghi rõ sai ở đâu
 và vì sao điều đó quan trọng), sửa, chạy lại. Kẹt quá 10 phút thì gọi Lab Coach
 và **đi tiếp block sau** — làm được đến đâu có điểm đến đó, đừng để tắc một chỗ
 mà mất cả các block còn lại.
-
-**Phần BONUS** dành cho bạn nào xong sớm hoặc muốn làm thêm sau buổi lab: tự
-viết một workflow GitHub Actions để mỗi lần push là tự chạy test, tự build
-image, và chỉ deploy khi mọi thứ xanh. Lab **không cho sẵn file mẫu** — đây là
-phần để bạn tự đọc tài liệu và tự dựng. Chỉ nên bắt đầu khi CP1–CP5 đã ổn.
 
 Chi tiết từng bước: [LAB_GUIDE.md](LAB_GUIDE.md).
 
@@ -226,10 +220,8 @@ DAY12-<MãHV>-<HọTên>/
 ├── railway.toml           # CP5 — cấu hình Railway
 ├── render.yaml            # CP5 — cấu hình Render
 ├── screenshots/           # Ảnh chụp màn hình bản deploy
-├── .github/workflows/     # ★ BONUS — workflow CI/CD bạn tự viết (chưa có sẵn)
 └── tests/
     ├── test_cp1.py … test_cp5.py
-    ├── test_bonus_cicd.py # BONUS — chấm workflow CI/CD
     └── conftest.py
 ```
 
@@ -265,10 +257,6 @@ python grade.py
 | CP5 — Cloud Deployment | `tests/test_cp5.py` | 15 |
 | `exercises.md` — 10 câu phản ánh | Đếm số câu đã trả lời | 15 |
 | **Tổng phần bắt buộc** | | **100** |
-| BONUS — CI/CD với GitHub Actions | `tests/test_bonus_cicd.py` | +10 |
-
-Điểm bonus cộng vào tổng nhưng **tổng cuối không vượt quá 100**. Muốn chấm nhanh
-phần bắt buộc thôi: `python grade.py --no-bonus`.
 
 Điểm mỗi checkpoint tỷ lệ với số test pass — **làm được đến đâu có điểm đến đó**.
 
@@ -315,4 +303,3 @@ Nộp **link repository** lên Codelab. Repo phải ở chế độ public.
 - [ ] `.env` **không** nằm trong repo (`git ls-files | grep .env` chỉ ra `.env.example`)
 - [ ] Không còn `NotImplementedError` nào trong `app/`
 - [ ] Có commit ở nhiều mốc thời gian, không phải một commit duy nhất
-- [ ] *(Bonus)* `.github/workflows/ci.yml` chạy xanh, README có badge `passing`

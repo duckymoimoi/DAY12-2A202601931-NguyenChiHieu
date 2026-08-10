@@ -7,7 +7,6 @@ Cách dùng (chạy từ thư mục gốc của repo):
 Cách tính điểm (tổng 100):
     - 5 checkpoint (85đ): điểm mỗi checkpoint = số test pass / tổng test × điểm
     - exercises.md (15đ): điểm = số câu đã trả lời / tổng số câu × 15
-    - BONUS CI/CD (+10đ): không bắt buộc; tổng cuối vẫn không vượt quá 100
 
 Quy ước riêng:
     - CP5 dùng phương án dự phòng (LOCAL_FALLBACK=true) chỉ được tối đa 60%
@@ -15,8 +14,6 @@ Quy ước riêng:
     - Test bị skip (ví dụ máy chưa bật Docker) KHÔNG bị tính là rớt, nhưng
       cũng không được cộng điểm — phần điểm đó chia đều cho các test còn lại.
 
-Chỉ muốn chấm phần chính, bỏ qua bonus (nhanh hơn, không cần mạng):
-    python grade.py --no-bonus
 """
 
 from __future__ import annotations
@@ -43,11 +40,6 @@ PLACEHOLDER = "> *Câu trả lời của bạn*"
 TOTAL_QUESTIONS = 10
 
 FALLBACK_MAX_RATIO = 0.6
-
-# Phần không bắt buộc — cộng thêm nhưng tổng cuối vẫn trần 100
-BONUS = ("BONUS", "CI/CD với GitHub Actions", ["tests/test_bonus_cicd.py"], 10)
-MAX_TOTAL = 100
-
 
 class _Collector:
     """Plugin pytest đếm kết quả một lần chạy."""
@@ -135,17 +127,6 @@ def main() -> int:
     )
     rows.append(("Exercises — câu hỏi phản ánh", ex_detail, ex_score, EXERCISES_POINTS))
 
-    # ── Phần không bắt buộc ──────────────────────────────────
-    bonus_score = 0.0
-    bonus_detail = "bỏ qua (--no-bonus)"
-    bonus_code, bonus_name, bonus_args, bonus_points = BONUS
-    if "--no-bonus" not in sys.argv:
-        print(f"\n>>> {bonus_code} — {bonus_name} (không bắt buộc)")
-        result = run_checkpoint(bonus_args)
-        counted = result.passed + result.failed
-        bonus_score = round(bonus_points * result.passed / counted, 1) if counted else 0.0
-        bonus_detail = f"{result.passed}/{counted} test"
-
     print("\n" + "=" * 74)
     print("BẢNG ĐIỂM")
     print("=" * 74)
@@ -154,25 +135,12 @@ def main() -> int:
         total += score
         print(f"  {name:<48} {detail:<20} {score:>5.1f}/{max_points}")
     print("-" * 74)
-    print(f"  {'Điểm phần bắt buộc':<48} {'':<20} {round(total, 1):>5.1f}/100")
-    print(
-        f"  {'BONUS — ' + bonus_name:<48} {bonus_detail:<20} "
-        f"{'+' + format(bonus_score, '.1f'):>6}/{bonus_points}"
-    )
-    print("-" * 74)
-    final = min(MAX_TOTAL, total + bonus_score)
-    print(f"  {'TỔNG CUỐI (trần 100)':<48} {'':<20} {round(final, 1):>5.1f}/100")
+    print(f"  {'Tổng điểm':<48} {'':<20} {round(total, 1):>5.1f}/100")
     print("=" * 74)
-
-    if bonus_score and total + bonus_score > MAX_TOTAL:
-        notes.append(
-            f"điểm bonus bị cắt {round(total + bonus_score - MAX_TOTAL, 1)}đ do chạm trần 100"
-        )
 
     for note in notes:
         print(f"  ⚠  {note}")
 
-    total = final
     if total >= 90:
         print("\n  Xuất sắc. Service của bạn đã đạt chuẩn production.")
     elif total >= 75:

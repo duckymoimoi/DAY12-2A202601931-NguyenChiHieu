@@ -31,9 +31,9 @@
 | `LOG_LEVEL` | ✅ | Blueprint, giá trị INFO |
 | `LLM_PROVIDER` | ✅ | Blueprint, giá trị `groq` |
 | `GROQ_MODEL` | ✅ | Blueprint, giá trị `openai/gpt-oss-20b` |
-| `GROQ_API_KEY` | ⏳ | Secret nhập trong Render Dashboard (`sync: false`) |
-| `TAVILY_API_KEY` | ⏳ | Secret nhập trong Render Dashboard (`sync: false`) |
-| `FIRECRAWL_API_KEY` | ⏳ | Secret nhập trong Render Dashboard (`sync: false`) |
+| `GROQ_API_KEY` | ✅ | Secret nhập trong Render Dashboard (`sync: false`) |
+| `TAVILY_API_KEY` | ✅ | Secret nhập trong Render Dashboard (`sync: false`) |
+| `FIRECRAWL_API_KEY` | ✅ | Secret nhập trong Render Dashboard (`sync: false`) |
 | `RAG_ENABLED` | ✅ | Blueprint, giá trị `true` |
 | `WEB_SEARCH_ENABLED` | ✅ | Blueprint, giá trị `true` |
 | `WEB_SCRAPE_ENABLED` | ✅ | Blueprint, giá trị `true` |
@@ -81,6 +81,8 @@ GET  /ready  -> 200 {"status":"ready","redis":true}
 POST /ask không có API key -> 401
 POST /ask có API key hợp lệ -> 200, có answer và user_id
 Rate limit 15 request -> 200 200 200 200 200 200 200 200 200 200 429 429 429 429 429
+GET  /capabilities -> Groq, openai/gpt-oss-20b, local RAG + web search + deep scrape
+POST /ask câu hỏi hiện hành -> Groq, knowledge_mode=local+web, dẫn nguồn chính thức
 ```
 
 ## Ảnh Chụp Màn Hình

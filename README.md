@@ -34,6 +34,9 @@ mock fallback.
 Corpus bổ sung nằm trong [`knowledge/`](knowledge/). Xem cấu hình mẫu đầy đủ tại
 [`.env.example`](.env.example).
 
+Tài liệu trình bày toàn bộ nội dung buổi học, kiến trúc, sequence request và kịch bản
+demo: [`PROJECT_WALKTHROUGH.md`](PROJECT_WALKTHROUGH.md).
+
 ---
 
 ## ⚠️ Bài Làm Cá Nhân

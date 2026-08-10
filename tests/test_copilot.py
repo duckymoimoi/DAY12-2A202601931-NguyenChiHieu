@@ -18,6 +18,13 @@ def test_local_retriever_finds_relevant_markdown(repo_root):
     assert all(result.source_type == "local" for result in results)
 
 
+def test_local_retriever_indexes_project_walkthrough(repo_root):
+    retriever = LocalMarkdownRetriever(repo_root)
+    results = retriever.search("operational trace luồng request", limit=8)
+
+    assert any(result.uri.startswith("PROJECT_WALKTHROUGH.md") for result in results)
+
+
 def test_web_router_uses_web_for_current_information():
     strong_local = [Source("Render", "README.md", "Render", score=10.0)]
 

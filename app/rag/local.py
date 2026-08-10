@@ -37,7 +37,12 @@ def tokenize(text: str) -> list[str]:
 class LocalMarkdownRetriever:
     """Ranks Markdown sections with a compact BM25 implementation."""
 
-    DEFAULT_FILES = ("README.md", "LAB_GUIDE.md", "DEPLOYMENT.md")
+    DEFAULT_FILES = (
+        "README.md",
+        "LAB_GUIDE.md",
+        "DEPLOYMENT.md",
+        "PROJECT_WALKTHROUGH.md",
+    )
 
     def __init__(self, root: Path, knowledge_dir: str = "knowledge") -> None:
         self.root = root

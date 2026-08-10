@@ -276,6 +276,7 @@ def ask(
         "knowledge_mode": result.get("knowledge_mode", "offline"),
         "sources": result.get("sources", []),
         "warning": result.get("warning"),
+        "routing": result.get("routing"),
         "trace": {
             "id": trace_id,
             "total_ms": total_ms,

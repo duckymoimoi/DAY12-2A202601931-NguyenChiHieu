@@ -24,6 +24,13 @@ TRUSTED_DOMAIN_HINTS = {
     "github": ["docs.github.com"],
     "kubernetes": ["kubernetes.io"],
     "python": ["docs.python.org"],
+    "terraform": ["developer.hashicorp.com"],
+}
+
+SEARCH_QUERY_EXPANSIONS = {
+    "terraform": "terraform deploy web application infrastructure as code tutorial",
+    "kubernetes": "kubernetes deployment service official documentation",
+    "ansible": "ansible deploy web application official documentation",
 }
 
 
@@ -41,6 +48,9 @@ def search_query_for_web(query: str, trusted_domains: list[str]) -> str:
         return query
     normalized = normalize(query)
     suffix = " official documentation"
+    for marker, expansion in SEARCH_QUERY_EXPANSIONS.items():
+        if marker in normalized:
+            suffix += f" {expansion}"
     if "groq" in normalized and any(
         marker in normalized for marker in ("thay", "ngung", "deprecat", "replacement")
     ):

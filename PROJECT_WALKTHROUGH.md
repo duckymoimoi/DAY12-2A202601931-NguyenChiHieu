@@ -159,6 +159,14 @@ Web RAG chỉ chạy khi:
 2. Câu hỏi thuộc phạm vi cloud/AI deployment.
 3. Câu hỏi có dấu hiệu cần thông tin hiện hành, hoặc local relevance thấp.
 
+Router còn đo **local term coverage**: sau khi bỏ các từ hỏi phổ biến, những thuật ngữ
+quan trọng trong câu hỏi phải xuất hiện trong các section local được chọn. Ngưỡng hiện
+tại là 80%. Nếu câu hỏi về “triển khai web bằng Terraform” nhưng nguồn local chỉ khớp
+“triển khai” và “web”, thuật ngữ `terraform` bị đánh dấu thiếu; router chuyển sang web
+với `reason=missing_local_terms`. Khi coverage không đạt, source local không được đưa
+vào citations và response dùng `knowledge_mode=web` hoặc `model`, không nhận nhầm là
+đã grounded bằng tài liệu local.
+
 Ví dụ cần web:
 
 - “Hiện nay Groq thay thế `llama-3.1-8b-instant` bằng model nào?”
@@ -230,6 +238,10 @@ bước chỉ chứa tên, trạng thái, thời gian và metadata an toàn.
 | `web_rag` | Tavily/Firecrawl chạy hoặc được đánh dấu `skipped` |
 | `llm` | Thời gian inference của Groq hoặc mock fallback |
 | `persistence` | Ghi lịch sử và chi phí vào Redis |
+
+Response còn có `routing.reason`, `routing.local_coverage` và
+`routing.missing_local_terms` để giải thích vì sao router chọn local, web hay kiến thức
+có sẵn của model.
 
 Frontend hiển thị trace trong thẻ `<details>` thu gọn. Trace không chứa:
 

@@ -43,6 +43,18 @@ TOPIC_MARKERS = {
     "llm", "logging", "nginx", "observability", "rag", "rate limit", "redis",
     "render", "scaling", "security", "server", "tavily", "token", "uvicorn",
     "vector", "web", "12-factor", "readiness", "liveness", "cost guard",
+    "terraform", "infrastructure", "iac", "ansible",
+}
+
+LOCAL_COVERAGE_THRESHOLD = 0.8
+
+QUERY_STOPWORDS = {
+    "ai", "anh", "bang", "ban", "biet", "cac", "can", "cho", "co", "cua",
+    "den", "do", "duoc", "giai", "gi", "giup", "hay", "hoac", "hoi", "ich",
+    "khac", "khi", "khong", "la", "lam", "mot", "nao", "nghi", "nhu", "nhung",
+    "sao", "so", "tai", "the", "thi", "thich", "toi", "trong", "tu", "va",
+    "ve", "voi", "what", "which", "how", "why", "the", "this", "that", "for",
+    "from", "with", "about", "into", "using", "need", "know",
 }
 
 
@@ -61,11 +73,50 @@ def is_topic_related(question: str, local_sources: list[Source]) -> bool:
     return bool(local_sources) or _contains_marker(normalized, TOPIC_MARKERS)
 
 
-def should_search_web(question: str, local_sources: list[Source]) -> bool:
+def local_query_coverage(question: str, local_sources: list[Source]) -> dict[str, Any]:
+    from .rag.local import tokenize
+
+    terms = list(
+        dict.fromkeys(
+            term
+            for term in tokenize(question)
+            if len(term) >= 3 and term not in QUERY_STOPWORDS
+        )
+    )
+    source_terms: set[str] = set()
+    for source in local_sources:
+        source_terms.update(tokenize(f"{source.title} {source.content}"))
+    matched = [term for term in terms if term in source_terms]
+    missing = [term for term in terms if term not in source_terms]
+    ratio = len(matched) / len(terms) if terms else (1.0 if local_sources else 0.0)
+    return {
+        "ratio": round(ratio, 4),
+        "terms": terms,
+        "matched_terms": matched,
+        "missing_terms": missing,
+    }
+
+
+def web_search_reason(
+    question: str,
+    local_sources: list[Source],
+    coverage: dict[str, Any] | None = None,
+) -> str | None:
     normalized = _normalized(question)
     if _contains_marker(normalized, TIME_SENSITIVE_MARKERS):
-        return True
-    return not local_sources or local_sources[0].score < 1.5
+        return "current_information"
+    if not local_sources:
+        return "no_local_sources"
+    if local_sources[0].score < 1.5:
+        return "low_local_score"
+    coverage = coverage or local_query_coverage(question, local_sources)
+    if coverage["ratio"] < LOCAL_COVERAGE_THRESHOLD:
+        return "missing_local_terms"
+    return None
+
+
+def should_search_web(question: str, local_sources: list[Source]) -> bool:
+    return web_search_reason(question, local_sources) is not None
 
 
 def _context_block(sources: list[Source], max_chars: int) -> str:
@@ -154,23 +205,30 @@ class CloudCopilot:
             if self.settings.rag_enabled
             else []
         )
+        coverage = local_query_coverage(question, local_sources)
+        local_grounded = bool(local_sources) and coverage["ratio"] >= LOCAL_COVERAGE_THRESHOLD
+        missing_preview = ", ".join(coverage["missing_terms"][:4])
+        local_detail = f"{len(local_sources)} nguồn · coverage {coverage['ratio']:.0%}"
+        if missing_preview:
+            local_detail += f" · thiếu: {missing_preview}"
         trace.append(
             _trace_step(
                 "local_rag",
                 "Local Markdown RAG",
                 started_at,
-                detail=f"{len(local_sources)} nguồn",
+                detail=local_detail,
             )
         )
-        sources = list(local_sources)
+        sources = list(local_sources) if local_grounded else []
         web_attempted = False
         web_warning: str | None = None
+        route_reason = web_search_reason(question, local_sources, coverage)
 
         if (
             self.settings.web_search_enabled
             and self.settings.tavily_api_key
             and is_topic_related(question, local_sources)
-            and should_search_web(question, local_sources)
+            and route_reason is not None
         ):
             web_attempted = True
             started_at = perf_counter()
@@ -186,13 +244,13 @@ class CloudCopilot:
                 web_sources = web.search(question)
                 # For questions explicitly routed to the web, current evidence must
                 # precede the stable lab corpus while both remain available.
-                sources = web_sources + local_sources
+                sources = web_sources + (local_sources if local_grounded else [])
                 trace.append(
                     _trace_step(
                         "web_rag",
                         "Tavily + Firecrawl",
                         started_at,
-                        detail=f"{len(web_sources)} nguồn web",
+                        detail=f"{len(web_sources)} nguồn web · reason={route_reason}",
                     )
                 )
             except WebRetrievalError:
@@ -213,7 +271,11 @@ class CloudCopilot:
                     "label": "Web RAG",
                     "status": "skipped",
                     "duration_ms": 0.0,
-                    "detail": "Tài liệu local đã đủ",
+                    "detail": (
+                        "Tài liệu local đã đủ"
+                        if route_reason is None
+                        else "Câu hỏi ngoài phạm vi web của copilot"
+                    ),
                 }
             )
 
@@ -280,8 +342,8 @@ class CloudCopilot:
         if result["provider"] == "mock":
             knowledge_mode = "fallback"
         elif any(source.source_type == "web" for source in sources):
-            knowledge_mode = "local+web" if local_sources else "web"
-        elif local_sources:
+            knowledge_mode = "local+web" if local_grounded else "web"
+        elif local_grounded:
             knowledge_mode = "local"
         else:
             knowledge_mode = "model"
@@ -292,6 +354,12 @@ class CloudCopilot:
                 "sources": public_sources,
                 "web_attempted": web_attempted,
                 "trace": trace,
+                "routing": {
+                    "decision": "web" if web_attempted else ("local" if local_grounded else "model"),
+                    "reason": route_reason or "local_coverage_sufficient",
+                    "local_coverage": coverage["ratio"],
+                    "missing_local_terms": coverage["missing_terms"][:8],
+                },
             }
         )
         if web_warning:

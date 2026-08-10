@@ -313,6 +313,7 @@ function addMessage(role, text, metrics = null) {
       `${metrics.history_length} previous messages`,
       metrics.provider ? `${metrics.provider} · ${metrics.model}` : null,
       metrics.knowledge_mode ? `knowledge: ${metrics.knowledge_mode}` : null,
+      metrics.routing?.reason ? `route: ${metrics.routing.reason}` : null,
     ].filter(Boolean);
     values.forEach((value) => {
       const chip = document.createElement("span");

@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     groq_base_url: str = "https://api.groq.com/openai/v1"
     groq_model: str = "openai/gpt-oss-20b"
     groq_timeout_seconds: float = 25.0
-    groq_max_tokens: int = 650
+    groq_max_tokens: int = 2048
     groq_temperature: float = 0.2
     groq_reasoning_effort: str = "low"
     groq_include_reasoning: bool = False

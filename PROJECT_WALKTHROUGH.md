@@ -244,7 +244,7 @@ Thông số Blueprint production:
 | Web service | `day12-agent`, runtime Docker, plan `free` |
 | State service | `day12-redis`, Render Key Value plan `free` |
 | Health path | `/health` |
-| LLM | Groq `openai/gpt-oss-20b`, tối đa 650 output token |
+| LLM | Groq `openai/gpt-oss-20b`, tối đa 2048 output token |
 | Reasoning | `low`, không trả reasoning nội bộ |
 | RAG | Bật local RAG và web search |
 | Web retrieval | Tối đa 4 kết quả; scrape tối đa 1 trang |
@@ -399,7 +399,7 @@ Thông số workload mở rộng:
 | Thông số | Giá trị | Tác động |
 |---|---:|---|
 | `GROQ_TIMEOUT_SECONDS` | 25 giây | Hủy request provider bị treo quá lâu |
-| `GROQ_MAX_TOKENS` | 650 | Giới hạn độ dài và chi phí output |
+| `GROQ_MAX_TOKENS` | 2048 | Cho phép trả lời kỹ thuật dài hơn nhưng vẫn giới hạn chi phí |
 | `GROQ_TEMPERATURE` | 0.2 | Giữ câu trả lời ổn định hơn khi demo kỹ thuật |
 | `RAG_TOP_K` | 4 | Lấy tối đa 4 đoạn local phù hợp |
 | `RAG_MAX_CONTEXT_CHARS` | 9000 | Chặn context local phình quá lớn |

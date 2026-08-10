@@ -50,6 +50,7 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
       GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
+      GROQ_MAX_TOKENS: ${GROQ_MAX_TOKENS:-2048}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       RAG_ENABLED: ${RAG_ENABLED:-true}

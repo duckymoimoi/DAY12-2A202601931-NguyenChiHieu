@@ -3,10 +3,10 @@
 > **Bài làm cá nhân.** Trả lời bằng lời của chính bạn, dựa trên những gì bạn
 > quan sát được khi chạy code — không sao chép đáp án của người khác.
 >
-> Cách trả lời: thay dòng `> *Câu trả lời của bạn*` bằng câu trả lời.
+> Cách trả lời: thay từng dòng trả lời mẫu bằng câu trả lời của bạn.
 > `grade.py` đếm số câu đã trả lời (15 điểm cho 10 câu).
 >
-> Họ và tên: ..........................  Mã học viên: ..........................
+> Họ và tên: Nguyễn Chí Hiếu  Mã học viên: 2A202601931
 
 ---
 
@@ -16,7 +16,10 @@ Trong `Settings`, `agent_api_key` không có giá trị mặc định nên app c
 khi khởi động nếu thiếu biến môi trường. Hãy mô tả một tình huống cụ thể mà
 việc "chết sớm" này cứu bạn, so với việc để mặc định `"changeme"`.
 
-> *Câu trả lời của bạn*
+> Ví dụ khi deploy lên Render nhưng quên cấu hình `AGENT_API_KEY`, fail fast làm
+> container dừng ngay và báo lỗi cấu hình. Nếu có khóa mặc định `"changeme"`,
+> service vẫn public bình thường và người lạ có thể đoán khóa để gọi API, tiêu
+> quota hoặc chi phí trước khi tôi phát hiện.
 
 ---
 
@@ -26,7 +29,11 @@ Chạy service và gọi `/ask` vài lần. Dán một dòng log JSON bạn thu 
 nêu **hai** việc bạn làm được với dòng log đó mà `print("đã trả lời xong")`
 không làm được.
 
-> *Câu trả lời của bạn*
+> Một log thực tế:
+> `{"event":"ask_completed","level":"info","timestamp":"2026-08-10T03:03:10.990280+00:00","user_id":"local-smoke","tokens_in":3,"tokens_out":37,"cost_usd":0.00002265}`.
+> Từ các trường JSON, tôi có thể lọc toàn bộ request theo `user_id` để điều tra
+> và cộng `tokens`/`cost_usd` theo thời gian để tạo dashboard hoặc cảnh báo.
+> Chuỗi `print("đã trả lời xong")` không có dữ liệu có cấu trúc để làm hai việc này.
 
 ---
 
@@ -42,12 +49,15 @@ docker images | grep agent
 
 | Bản | Dung lượng |
 |-----|-----------|
-| 1 stage (bản đầu) | ... MB |
-| Multi-stage | ... MB |
+| 1 stage (bản đầu) | khoảng 1.1 GB |
+| Multi-stage | 270 MB |
 
 Giải thích: phần dung lượng chênh lệch đó là những gì?
 
-> *Câu trả lời của bạn*
+> Bản đầu dùng image `python:3.11` đầy đủ và giữ toàn bộ môi trường cài đặt trong
+> image cuối. Bản multi-stage dùng `python:3.11-slim`, chỉ chép thư viện runtime
+> từ builder, không giữ cache pip, công cụ build và file không cần thiết như
+> `.git`, `.env`, test hay virtualenv. Vì vậy image cuối nhỏ hơn đáng kể.
 
 ---
 
@@ -57,7 +67,11 @@ Sửa một ký tự trong `app/main.py` rồi build lại. Với Dockerfile c�
 layer nào được dùng lại từ cache, layer nào phải chạy lại? Nếu bạn đặt
 `COPY . .` lên trước `RUN pip install` thì kết quả khác thế nào?
 
-> *Câu trả lời của bạn*
+> Khi chỉ sửa `app/main.py`, các layer base image, `COPY requirements.txt`, cài
+> dependency trong builder và `COPY --from=builder` được dùng lại từ cache.
+> Layer `COPY app` cùng các layer đứng sau nó phải chạy lại. Nếu đặt `COPY . .`
+> trước `pip install`, mọi thay đổi source đều làm mất cache dependency và pip
+> phải cài lại toàn bộ thư viện dù `requirements.txt` không đổi.
 
 ---
 
@@ -67,7 +81,12 @@ Container mặc định chạy bằng root. Mô tả chuỗi sự kiện dẫn t
 trong code Python của bạn" tới "kẻ tấn công có quyền cao trên máy host", và
 lệnh `USER` cắt đứt chuỗi đó ở chỗ nào.
 
-> *Câu trả lời của bạn*
+> Một lỗi thực thi mã từ xa có thể cho kẻ tấn công chạy lệnh trong container.
+> Nếu process là root, họ có quyền root trong container và có thể lợi dụng volume
+> nhạy cảm, capability dư thừa hoặc lỗ hổng kernel/container runtime để tác động
+> tới host. `USER appuser` chuyển process sang UID thường trước khi chạy Uvicorn,
+> nên mã bị chiếm quyền chỉ có đặc quyền hạn chế. Cách này giảm hậu quả, dù vẫn
+> cần tránh mount Docker socket và cấp capability không cần thiết.
 
 ---
 
@@ -78,7 +97,10 @@ phút đồng hồ (reset lúc giây 00), một người dùng có thể gửi t
 request trong 2 giây liên tiếp khi hạn mức là 10/phút? Giải thích cách đạt được
 con số đó.
 
-> *Câu trả lời của bạn*
+> Tối đa 20 request: gửi 10 request ở cuối phút, ví dụ `10:00:59`, rồi gửi tiếp
+> 10 request ngay sau lúc bộ đếm reset ở `10:01:00`. Sliding window luôn nhìn
+> lại đúng 60 giây gần nhất nên không cho phép burst 20 request trong khoảng
+> hai giây như cách đếm theo phút đồng hồ.
 
 ---
 
@@ -87,7 +109,11 @@ con số đó.
 Hai cơ chế này khác nhau ở điểm nào? Cho một tình huống mà rate limit cho qua
 nhưng cost guard phải chặn, và một tình huống ngược lại.
 
-> *Câu trả lời của bạn*
+> Rate limit giới hạn số request trong một khoảng thời gian, còn cost guard giới
+> hạn tổng tiền theo tháng. Một request rất dài có thể vẫn nằm trong hạn mức
+> request/phút nhưng vượt ngân sách nên cost guard phải chặn. Ngược lại, nhiều
+> request rất ngắn có tổng chi phí thấp vẫn có thể bị rate limit chặn vì gửi quá
+> dồn dập, dù cost guard vẫn cho qua.
 
 ---
 
@@ -96,7 +122,11 @@ nhưng cost guard phải chặn, và một tình huống ngược lại.
 Nếu gộp hai endpoint làm một và cho nó kiểm tra Redis, chuyện gì xảy ra với cụm
 3 container khi Redis mất kết nối 30 giây? Trả lời theo đúng thứ tự sự kiện.
 
-> *Câu trả lời của bạn*
+> Redis mất kết nối làm endpoint gộp trả 503 ở cả ba container. Orchestrator hiểu
+> đây là lỗi liveness nên loại rồi restart cả ba, dù các process FastAPI vẫn sống.
+> Trong lúc Redis chưa phục hồi, container mới tiếp tục fail health check và rơi
+> vào vòng restart; toàn cụm mất khả năng phục vụ. Tách `/health` giúp process
+> không bị restart, còn `/ready` chỉ yêu cầu load balancer tạm ngừng gửi traffic.
 
 ---
 
@@ -106,7 +136,11 @@ Chạy `docker compose up --scale agent=3` rồi gọi `/ask` nhiều lần vớ
 `X-User-Id`. Quan sát `history_length` trong response. Nếu lịch sử được lưu
 trong một dict Python thay vì Redis, bạn sẽ thấy con số đó thay đổi thế nào?
 
-> *Câu trả lời của bạn*
+> Với Redis dùng chung, các request cùng `X-User-Id` thấy một lịch sử thống nhất;
+> `history_length` tăng lần lượt 0, 2, 4, ... dù request vào replica nào. Nếu dùng
+> dict Python, mỗi container có lịch sử riêng nên số có thể nhảy không đều như
+> 0, 0, 2, 0 hoặc giảm khi request chuyển replica; restart container còn làm lịch
+> sử của replica đó mất hoàn toàn.
 
 ---
 
@@ -116,4 +150,10 @@ Ghi lại **một** lỗi bạn gặp khi deploy lên cloud (build fail, health 
 timeout, sai REDIS_URL, app không đọc `$PORT`...): thông báo lỗi là gì, bạn
 tìm ra nguyên nhân bằng cách nào, và sửa ra sao?
 
-> *Câu trả lời của bạn*
+> Lần deploy đầu, Render báo `Create web service day12-agent (deploy failed)` và
+> health check không thể xanh. Tôi đối chiếu commit đang deploy với log/startup
+> local và thấy `lifecycle.install()` cùng `/health` còn ném
+> `NotImplementedError`, đồng thời Dockerfile cố định cổng 8000. Tôi cài đặt
+> lifecycle và health endpoint, đổi lệnh chạy sang `${PORT:-8000}`, test bằng
+> Docker Compose rồi push lại. Deployment sau đó thành công và `/health`,
+> `/ready` đều trả 200 trên URL Render.

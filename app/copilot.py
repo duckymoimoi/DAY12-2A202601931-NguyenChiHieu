@@ -68,14 +68,19 @@ def should_search_web(question: str, local_sources: list[Source]) -> bool:
 
 
 def _context_block(sources: list[Source], max_chars: int) -> str:
+    if not sources:
+        return ""
     blocks: list[str] = []
     used = 0
+    # Reserve room for every selected source. Without a per-source cap, long local
+    # sections can consume the entire prompt before fresh web evidence is included.
+    per_source_chars = max(600, min(2500, max_chars // len(sources)))
     for index, source in enumerate(sources, start=1):
         header = f"[{index}] {source.title} — {source.uri}\n"
         remaining = max_chars - used - len(header)
         if remaining <= 0:
             break
-        content = source.content[:remaining]
+        content = source.content[: min(remaining, per_source_chars)]
         blocks.append(f"{header}{content}")
         used += len(header) + len(content)
     return "\n\n".join(blocks)
@@ -138,7 +143,10 @@ class CloudCopilot:
                     scrape_enabled=self.settings.web_scrape_enabled,
                     scrape_max_pages=self.settings.web_scrape_max_pages,
                 )
-                sources.extend(web.search(question))
+                web_sources = web.search(question)
+                # For questions explicitly routed to the web, current evidence must
+                # precede the stable lab corpus while both remain available.
+                sources = web_sources + local_sources
             except WebRetrievalError:
                 web_warning = "Không thể truy vấn web; câu trả lời chỉ dùng tài liệu local."
 

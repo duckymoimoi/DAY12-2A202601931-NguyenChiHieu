@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 
 from app.config import Settings
-from app.copilot import CloudCopilot, should_search_web
+from app.copilot import CloudCopilot, _context_block, should_search_web
 from app.llm.groq import GroqProvider
 from app.rag.local import LocalMarkdownRetriever, Source
 
@@ -22,6 +22,17 @@ def test_web_router_uses_web_for_current_information():
 
     assert should_search_web("Render hiện nay hỗ trợ region nào?", strong_local)
     assert not should_search_web("Giải thích Docker multi-stage", strong_local)
+
+
+def test_context_reserves_room_for_every_source():
+    sources = [
+        Source(f"Source {index}", f"source-{index}.md", str(index) * 5000)
+        for index in range(4)
+    ]
+    context = _context_block(sources, max_chars=4000)
+
+    for index in range(4):
+        assert f"Source {index}" in context
 
 
 def test_groq_provider_parses_usage_and_cost():

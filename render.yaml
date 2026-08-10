@@ -21,6 +21,8 @@ services:
         value: "true"
       - key: GROQ_MODEL
         value: openai/gpt-oss-20b
+      - key: GROQ_MAX_TOKENS
+        value: "650"
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_BASE_URL
